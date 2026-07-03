@@ -1,7 +1,7 @@
 import type { NextConfig } from 'next';
 
 const isProd = process.env.NODE_ENV === 'production';
-const repo = 'Front-end'; // project-pages subpath
+const repo = 'Front-end';
 
 const nextConfig: NextConfig = {
   output: 'export',
