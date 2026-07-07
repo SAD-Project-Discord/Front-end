@@ -7,9 +7,10 @@ interface AuthFooterProps {
   prompt: string;
   linkLabel: string;
   href: string;
+  onClick?: () => void;
 }
 
-export default function AuthFooter({ prompt, linkLabel, href }: AuthFooterProps) {
+export default function AuthFooter({ prompt, linkLabel, href, onClick }: AuthFooterProps) {
   return (
     <Box sx={{ mt: 3 }}>
       <Divider sx={{ mb: 2.5 }} />
@@ -18,6 +19,7 @@ export default function AuthFooter({ prompt, linkLabel, href }: AuthFooterProps)
         <MuiLink
           component={NextLink}
           href={href}
+          onClick={onClick}
           sx={{ color: "text.primary", fontWeight: 600, textDecorationColor: "text.secondary" }}
         >
           {linkLabel}
