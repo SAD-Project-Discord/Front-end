@@ -32,24 +32,78 @@ const initialValues: RegisterFormValues = {
 function RegisterPage() {
   const router = useRouter();
   const [values, setValues] = useState<RegisterFormValues>(initialValues);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const handleChange =
     (field: keyof RegisterFormValues) => (event: ChangeEvent<HTMLInputElement>) => {
       setValues((prev) => ({ ...prev, [field]: event.target.value }));
+      if (formError) {
+        setFormError(null);
+      }
     };
+
+  const validateForm = () => {
+    const fullName = values.fullName.trim();
+    const username = values.username.trim();
+    const email = values.email.trim();
+
+    if (!fullName) {
+      return "Full name is required.";
+    }
+
+    if (fullName.length < 2) {
+      return "Full name must be at least 2 characters long.";
+    }
+
+    if (!username) {
+      return "Username is required.";
+    }
+
+    if (username.length < 3) {
+      return "Username must be at least 3 characters long.";
+    }
+
+    if (!email) {
+      return "Email is required.";
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return "Please enter a valid email address.";
+    }
+
+    if (values.password.length < 8) {
+      return "Password must be at least 8 characters long.";
+    }
+
+    if (!values.confirmPassword) {
+      return "Please confirm your password.";
+    }
+
+    if (values.password !== values.confirmPassword) {
+      return "Passwords do not match.";
+    }
+
+    return null;
+  };
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
 
-    if (values.password !== values.confirmPassword) {
-      authStore.error = "Passwords do not match.";
+    const validationError = validateForm();
+
+    if (validationError) {
+      setFormError(validationError);
+      authStore.error = null;
       return;
     }
 
+    setFormError(null);
+    authStore.error = null;
+
     const success = await authStore.register(
-      values.fullName,
-      values.username,
-      values.email,
+      values.fullName.trim(),
+      values.username.trim(),
+      values.email.trim(),
       values.password
     );
 
@@ -117,9 +171,9 @@ function RegisterPage() {
             required
           />
 
-          {authStore.error ? (
+          {(formError || authStore.error) ? (
             <Alert severity="error" sx={{ mt: 2 }}>
-              {authStore.error}
+              {formError ?? authStore.error}
             </Alert>
           ) : null}
 
