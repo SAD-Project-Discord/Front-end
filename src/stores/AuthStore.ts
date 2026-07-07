@@ -71,12 +71,15 @@ class AuthStore {
       );
 
       return true;
-    } catch (error: any) {
+    } catch (error: unknown) {
       runInAction(() => {
-        this.setError(
-          error.response?.data?.error?.message ??
-          "Login failed."
-        );
+        const responseMessage =
+          error && typeof error === "object" && "response" in error
+            ? (error as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error?.message
+            : undefined;
+        const message = typeof responseMessage === "string" ? responseMessage : "Login failed.";
+
+        this.setError(message);
 
         this.isAuthenticated = false;
       });
@@ -108,12 +111,15 @@ class AuthStore {
       );
 
       return true;
-    } catch (error: any) {
+    } catch (error: unknown) {
       runInAction(() => {
-        this.setError(
-          error.response?.data?.error?.message ??
-          "Registration failed."
-        );
+        const responseMessage =
+          error && typeof error === "object" && "response" in error
+            ? (error as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error?.message
+            : undefined;
+        const message = typeof responseMessage === "string" ? responseMessage : "Registration failed.";
+
+        this.setError(message);
 
         this.isAuthenticated = false;
       });
