@@ -21,16 +21,32 @@ interface LoginFormValues {
 function LoginPage() {
   const router = useRouter();
   const [values, setValues] = useState<LoginFormValues>({ email: "", password: "" });
+  const [formError, setFormError] = useState<string | null>(null);
 
   const handleChange =
     (field: keyof LoginFormValues) => (event: ChangeEvent<HTMLInputElement>) => {
       setValues((prev) => ({ ...prev, [field]: event.target.value }));
+      if (formError) {
+        setFormError(null);
+      }
     };
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
 
-    const success = await authStore.login(values.email, values.password);
+    const email = values.email.trim();
+    const password = values.password.trim();
+
+    if (!email || !password) {
+      setFormError("Email and password are required.");
+      authStore.setError(null);
+      return;
+    }
+
+    setFormError(null);
+    authStore.setError(null);
+
+    const success = await authStore.login(email, password);
 
     if (success) {
       router.push("/");
@@ -63,9 +79,9 @@ function LoginPage() {
             required
           />
 
-          {authStore.error ? (
+          {(formError || authStore.error) ? (
             <Alert severity="error" sx={{ mt: 2 }}>
-              {authStore.error}
+              {formError ?? authStore.error}
             </Alert>
           ) : null}
 
