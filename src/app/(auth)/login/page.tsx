@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ChangeEvent, type FormEvent } from "react";
+import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
 import { Alert, Box, Button, Stack } from "@mui/material";
 import { AccountCircle, Email, ArrowForward } from "@mui/icons-material";
 import { useRouter } from "next/navigation";
@@ -22,6 +22,11 @@ function LoginPage() {
   const router = useRouter();
   const [values, setValues] = useState<LoginFormValues>({ email: "", password: "" });
   const [formError, setFormError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setFormError(null);
+    authStore.setError(null);
+  }, []);
 
   const handleChange =
     (field: keyof LoginFormValues) => (event: ChangeEvent<HTMLInputElement>) => {
