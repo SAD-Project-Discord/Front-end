@@ -93,12 +93,12 @@ function RegisterPage() {
 
     if (validationError) {
       setFormError(validationError);
-      authStore.error = null;
+      authStore.setError(null);
       return;
     }
 
     setFormError(null);
-    authStore.error = null;
+    authStore.setError(null);
 
     const success = await authStore.register(
       values.fullName.trim(),

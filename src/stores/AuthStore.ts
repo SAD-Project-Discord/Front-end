@@ -24,6 +24,10 @@ class AuthStore {
     }
   }
 
+  setError(message: string | null) {
+    this.error = message;
+  }
+
   private persistAuth(user: User, accessToken: string, refreshToken: string) {
     runInAction(() => {
       this.user = user;
@@ -52,7 +56,7 @@ class AuthStore {
 
   async login(email: string, password: string) {
     this.isLoading = true;
-    this.error = null;
+    this.setError(null);
 
     try {
       const response = await authService.login({
@@ -69,9 +73,10 @@ class AuthStore {
       return true;
     } catch (error: any) {
       runInAction(() => {
-        this.error =
+        this.setError(
           error.response?.data?.error?.message ??
-          "Login failed.";
+          "Login failed."
+        );
 
         this.isAuthenticated = false;
       });
@@ -86,7 +91,7 @@ class AuthStore {
 
   async register(name: string, username: string, email: string, password: string) {
     this.isLoading = true;
-    this.error = null;
+    this.setError(null);
 
     try {
       const response = await authService.register({
@@ -105,9 +110,10 @@ class AuthStore {
       return true;
     } catch (error: any) {
       runInAction(() => {
-        this.error =
+        this.setError(
           error.response?.data?.error?.message ??
-          "Registration failed.";
+          "Registration failed."
+        );
 
         this.isAuthenticated = false;
       });
