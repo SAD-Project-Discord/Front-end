@@ -39,14 +39,14 @@ export default function PublicProfilePage() {
 
   if (error) {
     return (
-      <Box p={4} sx={{ backgroundColor: '#F5F4FB', minHeight: '100vh', display: 'flex', justifyContent: 'center', paddingTop: 10 }}>
+      <Box sx={{ p: 4, backgroundColor: '#F5F4FB', minHeight: '100vh', display: 'flex', justifyContent: 'center', paddingTop: 10 }}>
         <Typography color="error" variant="h6">{error}</Typography>
       </Box>
     );
   }
 
   return (
-    <Box p={4} sx={{ backgroundColor: '#F5F4FB', minHeight: '100vh' }}>
+    <Box sx={{ p: 4, backgroundColor: '#F5F4FB', minHeight: '100vh' }}>
       {loading ? (
         <Typography align="center" variant="body1" sx={{ mt: 10 }}>Loading profile...</Typography>
       ) : (
