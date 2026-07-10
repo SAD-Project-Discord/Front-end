@@ -5,10 +5,16 @@ import { Box, Typography } from '@mui/material';
 import ProfileEditForm from '@/components/profile/ProfileEditForm';
 import authStore from '@/stores/AuthStore';
 
+interface ProfileUpdateData {
+  displayName?: string;
+  bio?: string;
+  [key: string]: string | number | boolean | undefined;
+}
+
 function ProfileEditPage() {
   const currentUser = authStore.user;
 
-  const handleUpdateProfile = async (updatedData: any, avatarFile?: File) => {
+  const handleUpdateProfile = async (updatedData: ProfileUpdateData, avatarFile?: File) => {
     // TODO: Wire this up to a new authService method to patch the user profile
     console.log('Sending data to API:', updatedData);
     if (avatarFile) {
