@@ -4,11 +4,12 @@ import { observer } from 'mobx-react-lite';
 import { Box, Typography } from '@mui/material';
 import ProfileEditForm from '@/components/profile/ProfileEditForm';
 import authStore from '@/stores/AuthStore';
+import type { User } from '@/types/auth';
 
 function ProfileEditPage() {
   const currentUser = authStore.user;
 
-  const handleUpdateProfile = async (updatedData: any, avatarFile?: File) => {
+  const handleUpdateProfile = async (updatedData: Partial<User>, avatarFile?: File) => {
     // TODO: Wire this up to a new authService method to patch the user profile
     console.log('Sending data to API:', updatedData);
     if (avatarFile) {
