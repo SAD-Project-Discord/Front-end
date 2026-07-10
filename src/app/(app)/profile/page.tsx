@@ -10,7 +10,7 @@ function MyProfilePage() {
   const currentUser = authStore.user;
 
   return (
-    <Box p={4} sx={{ backgroundColor: '#F5F4FB', minHeight: '100vh' }}>
+    <Box sx={{ backgroundColor: '#F5F4FB', minHeight: '100vh', p: 4 }}>
       <ProfileView user={currentUser} />
     </Box>
   );
