@@ -45,7 +45,7 @@ export default function ProfileEditForm({ user, onSubmit }: ProfileEditFormProps
       }}
     >
       <form onSubmit={handleSubmit}>
-        <Box display="flex" flexDirection="column" alignItems="center" textAlign="center" mb={4}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', mb: 4 }}>
           <Avatar 
             src={avatarPreview} 
             sx={{ width: 120, height: 120, mb: 2, bgcolor: '#F5F4FB', color: '#9CA3AF' }}
@@ -58,7 +58,7 @@ export default function ProfileEditForm({ user, onSubmit }: ProfileEditFormProps
         
         <Divider sx={{ my: 3, borderColor: '#E2E1E8' }} />
         
-        <Box mb={3}>
+        <Box sx={{ mb: 3 }}>
           <TextField 
             label="Display Name" 
             value={name} 

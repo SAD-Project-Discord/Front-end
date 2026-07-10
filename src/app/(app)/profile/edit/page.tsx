@@ -17,7 +17,7 @@ function ProfileEditPage() {
   };
 
   return (
-    <Box p={4} sx={{ backgroundColor: '#F5F4FB', minHeight: '100vh' }}>
+    <Box sx={{ p: 4, backgroundColor: '#F5F4FB', minHeight: '100vh' }}>
       <Typography variant="h1" sx={{ mb: 4, textAlign: 'center' }}>Edit Profile</Typography>
       <ProfileEditForm user={currentUser} onSubmit={handleUpdateProfile} />
     </Box>

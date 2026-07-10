@@ -10,7 +10,7 @@ interface ProfileViewProps {
 export default function ProfileView({ user }: ProfileViewProps) {
   if (!user) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '200px' }}>
         <Typography variant="body2">Loading profile...</Typography>
       </Box>
     );
@@ -29,7 +29,7 @@ export default function ProfileView({ user }: ProfileViewProps) {
         backgroundColor: '#FFFFFF' // Matches palette.surface
       }}
     >
-      <Box display="flex" flexDirection="column" alignItems="center" textAlign="center" mb={4}>
+      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', mb: 4 }}>
         <Avatar 
           src={user.avatar_url} 
           alt={user.name} 
@@ -49,7 +49,7 @@ export default function ProfileView({ user }: ProfileViewProps) {
       
       <Divider sx={{ my: 3, borderColor: '#E2E1E8' }} />
       
-      <Box mb={3}>
+      <Box sx={{ mb: 3 }}>
         <Typography variant="subtitle1" sx={{ fontWeight: 600, color: '#15161A', mb: 1 }}>
           About Me
         </Typography>
