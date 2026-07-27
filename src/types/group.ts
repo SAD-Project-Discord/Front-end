@@ -1,4 +1,8 @@
+import type { User } from "@/types/auth";
+
 export type GroupRole = "admin" | "member";
+
+export type GroupInviteStatus = "pending" | "accepted" | "rejected";
 
 export interface Group {
   id: string;
@@ -27,4 +31,44 @@ export interface GroupResponse {
 export interface GroupsResponse {
   success: boolean;
   data: Group[];
+}
+
+export interface GroupMember {
+  id: string;
+  user: User;
+  role: GroupRole;
+  joined_at: string;
+}
+
+export interface GroupMembersResponse {
+  success: boolean;
+  data: GroupMember[];
+}
+
+export interface GroupMemberResponse {
+  success: boolean;
+  data: GroupMember;
+}
+
+export interface AddGroupMemberRequest {
+  user_id: string;
+}
+
+export interface GroupInvite {
+  id: string;
+  group_id: string;
+  group_name: string;
+  inviter: User;
+  invitee_id: string;
+  status: GroupInviteStatus;
+  created_at: string;
+}
+
+export interface GroupInviteResponse {
+  success: boolean;
+  data: GroupInvite;
+}
+
+export interface SendGroupInviteRequest {
+  invitee_id: string;
 }
