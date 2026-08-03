@@ -1,304 +1,210 @@
 "use client";
 
-import { useRef, useEffect } from "react";
+import { useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
-import { cx } from "./cx";
+import Box from "@mui/material/Box";
+import Stack from "@mui/material/Stack";
+import IconButton from "@mui/material/IconButton";
+import TextField from "@mui/material/TextField";
+import Chip from "@mui/material/Chip";
+import CircularProgress from "@mui/material/CircularProgress";
+import Tooltip from "@mui/material/Tooltip";
+import AttachFileRoundedIcon from "@mui/icons-material/AttachFileRounded";
+import EmojiEmotionsRoundedIcon from "@mui/icons-material/EmojiEmotionsRounded";
+import StickyNote2RoundedIcon from "@mui/icons-material/StickyNote2Rounded";
+import SendRoundedIcon from "@mui/icons-material/SendRounded";
+import ErrorOutlineRoundedIcon from "@mui/icons-material/ErrorOutlineRounded";
+import { storageApi } from "@/lib/api/storage";
+import { setAttachmentMeta } from "@/lib/chat/attachmentMetaCache";
+import { EmojiPicker } from "./EmojiPicker";
+import { StickerPicker } from "./StickerPicker";
 
-export interface ChatInputProps {
-  /** Current text value of the composer (controlled). */
-  value: string;
-  /** Called whenever the text value changes. */
-  onChange: (value: string) => void;
-  /** Called when the user submits the message (Enter or send button). */
-  onSend: () => void;
-  /** Called when the user picks file(s) to attach. */
-  onAttachFiles?: (files: FileList) => void;
-  /** Called when the user opens the emoji picker trigger. */
-  onOpenEmojiPicker?: () => void;
-  /** Called when the user opens the sticker picker trigger. */
-  onOpenStickerPicker?: () => void;
-  /** Called when the user wants to record a voice message. */
-  onStartVoiceRecord?: () => void;
-  /** Called on each keystroke, useful for driving typing-indicator broadcasts. */
-  onTyping?: () => void;
-  /** Disables the entire composer (e.g. while blocked or read-only). */
-  disabled?: boolean;
-  /** Shows a sending state on the submit button. */
-  isSending?: boolean;
-  /** Placeholder text for the input field. */
-  placeholder?: string;
-  /** Optional extra class names for layout composition by the parent. */
-  className?: string;
+interface PendingAttachment {
+  localId: string;
+  file: File;
+  status: "uploading" | "done" | "error";
+  fileKey?: string;
 }
 
-/**
- * Message composer: auto-growing text field, attach/emoji/sticker
- * triggers, and a send button. Fully controlled — all state lives in
- * the parent; this component only reports intent via callbacks.
- */
+export interface ChatInputProps {
+  value: string;
+  onChange: (value: string) => void;
+  onSend: (content: string, attachmentIds: string[]) => void;
+  onTyping?: () => void;
+  disabled?: boolean;
+  isSending?: boolean;
+  placeholder?: string;
+}
+
 export function ChatInput({
   value,
   onChange,
   onSend,
-  onAttachFiles,
-  onOpenEmojiPicker,
-  onOpenStickerPicker,
-  onStartVoiceRecord,
   onTyping,
   disabled = false,
   isSending = false,
   placeholder = "Message…",
-  className,
 }: ChatInputProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const imageInputRef = useRef<HTMLInputElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [pending, setPending] = useState<PendingAttachment[]>([]);
+  const [emojiAnchor, setEmojiAnchor] = useState<HTMLElement | null>(null);
+  const [stickerAnchor, setStickerAnchor] = useState<HTMLElement | null>(null);
 
-  const canSend = value.trim().length > 0 && !disabled && !isSending;
+  const isUploading = pending.some((p) => p.status === "uploading");
+  const readyAttachmentIds = pending.filter((p) => p.status === "done" && p.fileKey).map((p) => p.fileKey!);
+  const canSend = (value.trim().length > 0 || readyAttachmentIds.length > 0) && !disabled && !isSending && !isUploading;
 
-  // Auto-grow textarea logic
-  useEffect(() => {
-    if (textareaRef.current) {
-      // Reset height to auto to get the correct scrollHeight on deletion
-      textareaRef.current.style.height = "auto";
-      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
-    }
-  }, [value]);
-
-  function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
-    // Enter without Shift -> Send Message
+  function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement | HTMLInputElement>) {
     if (event.key === "Enter" && !event.shiftKey) {
-      event.preventDefault(); // Prevent standard new line
-      if (canSend) onSend();
+      event.preventDefault();
+      if (canSend) handleSend();
     }
-    // Shift + Enter is naturally handled by the textarea as a new line
+  }
+
+  function handleSend() {
+    onSend(value.trim(), readyAttachmentIds);
+    setPending([]);
   }
 
   function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
-    if (event.target.files && event.target.files.length > 0) {
-      onAttachFiles?.(event.target.files);
+    const files = event.target.files;
+    if (files && files.length > 0) {
+      Array.from(files).forEach(uploadFile);
     }
-    // Reset the input so the same file can be selected again if needed
     event.target.value = "";
   }
 
+  function uploadFile(file: File) {
+    const localId = `${file.name}-${Date.now()}-${Math.random()}`;
+    setPending((prev) => [...prev, { localId, file, status: "uploading" }]);
+
+    storageApi
+      .upload(file)
+      .then((res) => {
+        setAttachmentMeta(res.data.file_key, {
+          fileName: file.name,
+          mimeType: file.type,
+          sizeBytes: file.size,
+        });
+        setPending((prev) =>
+          prev.map((p) => (p.localId === localId ? { ...p, status: "done", fileKey: res.data.file_key } : p)),
+        );
+      })
+      .catch(() => {
+        setPending((prev) => prev.map((p) => (p.localId === localId ? { ...p, status: "error" } : p)));
+      });
+  }
+
+  function removePending(localId: string) {
+    setPending((prev) => prev.filter((p) => p.localId !== localId));
+  }
+
   return (
-    <div className={cx("shrink-0 border-t border-white/5 bg-[#1e1f24] p-3 sm:p-4", className)}>
-      <div
-        className={cx(
-          "flex items-end gap-1.5 rounded-2xl bg-[#2b2c34] px-2 py-1.5",
-          "transition-colors duration-150 focus-within:bg-[#303138]",
-          disabled && "opacity-60",
-        )}
+    <Box sx={{ flexShrink: 0, borderTop: 1, borderColor: "divider", p: { xs: 1.5, sm: 2 } }}>
+      {pending.length > 0 ? (
+        <Stack direction="row" spacing={1} sx={{ mb: 1, flexWrap: "wrap", rowGap: 1 }}>
+          {pending.map((p) => (
+            <Chip
+              key={p.localId}
+              size="small"
+              label={p.file.name}
+              onDelete={() => removePending(p.localId)}
+              icon={
+                p.status === "uploading" ? (
+                  <CircularProgress size={14} sx={{ ml: 1 }} />
+                ) : p.status === "error" ? (
+                  <Tooltip title="Upload failed">
+                    <ErrorOutlineRoundedIcon color="error" sx={{ fontSize: 16 }} />
+                  </Tooltip>
+                ) : undefined
+              }
+            />
+          ))}
+        </Stack>
+      ) : null}
+
+      <Stack
+        direction="row"
+        alignItems="flex-end"
+        spacing={0.5}
+        sx={{ bgcolor: "action.hover", borderRadius: 4, px: 1, py: 0.5, opacity: disabled ? 0.6 : 1 }}
       >
-        {/* Left Side: Attachment & Image Buttons */}
-        {onAttachFiles ? (
-          <div className="flex items-center gap-0.5 shrink-0 mb-0.5">
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              className="hidden"
-              onChange={handleFileChange}
-              disabled={disabled}
-            />
-            <ComposerIconButton
-              label="Attach a file"
-              disabled={disabled}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <AttachIcon />
-            </ComposerIconButton>
+        <input ref={fileInputRef} type="file" multiple hidden onChange={handleFileChange} disabled={disabled} />
+        <IconButton
+          size="small"
+          disabled={disabled}
+          onClick={() => fileInputRef.current?.click()}
+          aria-label="Attach a file"
+          sx={{ mb: 0.5 }}
+        >
+          <AttachFileRoundedIcon fontSize="small" />
+        </IconButton>
 
-            <input
-              ref={imageInputRef}
-              type="file"
-              multiple
-              accept="image/*"
-              className="hidden"
-              onChange={handleFileChange}
-              disabled={disabled}
-            />
-            <ComposerIconButton
-              label="Attach an image"
-              disabled={disabled}
-              onClick={() => imageInputRef.current?.click()}
-            >
-              <ImageIcon />
-            </ComposerIconButton>
-          </div>
-        ) : null}
-
-        {/* Center: Auto-growing Textarea */}
-        <textarea
-          ref={textareaRef}
+        <TextField
           value={value}
-          onChange={(event) => {
-            onChange(event.target.value);
+          onChange={(e) => {
+            onChange(e.target.value);
             onTyping?.();
           }}
           onKeyDown={handleKeyDown}
           disabled={disabled}
           placeholder={placeholder}
-          rows={1}
+          variant="standard"
+          multiline
+          maxRows={8}
+          fullWidth
           aria-label="Message"
-          className={cx(
-            "max-h-[50vh] min-h-[24px] mb-1 flex-1 resize-none bg-transparent py-1 text-[15px] leading-relaxed text-[#e7e8ec]",
-            "placeholder:text-[#6b6d76] focus:outline-none custom-scrollbar",
-          )}
-          style={{ overflowY: "auto" }}
+          slotProps={{ input: { disableUnderline: true } }}
+          sx={{ px: 0.5, py: 0.75 }}
         />
 
-        {/* Right Side: Extras & Send */}
-        <div className="flex items-center gap-0.5 shrink-0 mb-0.5">
-          {onStartVoiceRecord ? (
-            <ComposerIconButton label="Record a voice message" disabled={disabled} onClick={onStartVoiceRecord}>
-              <MicIcon />
-            </ComposerIconButton>
-          ) : null}
+        <IconButton
+          size="small"
+          disabled={disabled}
+          onClick={(e) => setStickerAnchor(e.currentTarget)}
+          aria-label="Send a sticker"
+          sx={{ mb: 0.5 }}
+        >
+          <StickyNote2RoundedIcon fontSize="small" />
+        </IconButton>
+        <IconButton
+          size="small"
+          disabled={disabled}
+          onClick={(e) => setEmojiAnchor(e.currentTarget)}
+          aria-label="Open emoji picker"
+          sx={{ mb: 0.5 }}
+        >
+          <EmojiEmotionsRoundedIcon fontSize="small" />
+        </IconButton>
 
-          {onOpenStickerPicker ? (
-            <ComposerIconButton label="Send a sticker" disabled={disabled} onClick={onOpenStickerPicker}>
-              <StickerIcon />
-            </ComposerIconButton>
-          ) : null}
+        <IconButton
+          onClick={handleSend}
+          disabled={!canSend}
+          aria-label="Send message"
+          color="primary"
+          sx={{
+            mb: 0.5,
+            bgcolor: canSend ? "primary.main" : "transparent",
+            color: canSend ? "primary.contrastText" : "text.disabled",
+            "&:hover": { bgcolor: canSend ? "primary.dark" : "transparent" },
+          }}
+        >
+          {isSending ? <CircularProgress size={18} color="inherit" /> : <SendRoundedIcon fontSize="small" />}
+        </IconButton>
+      </Stack>
 
-          {onOpenEmojiPicker ? (
-            <ComposerIconButton label="Open emoji picker" disabled={disabled} onClick={onOpenEmojiPicker}>
-              <EmojiIcon />
-            </ComposerIconButton>
-          ) : null}
-
-          <button
-            type="button"
-            onClick={onSend}
-            disabled={!canSend}
-            aria-label="Send message"
-            className={cx(
-              "flex h-9 w-9 shrink-0 items-center justify-center rounded-full ml-1",
-              "transition-all duration-200 active:scale-95",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5b6ef5]",
-              canSend
-                ? "bg-[#5b6ef5] text-white hover:bg-[#4c5eea] shadow-sm hover:shadow-[#5b6ef5]/25"
-                : "cursor-not-allowed bg-transparent text-[#4a4b54]",
-            )}
-          >
-            {isSending ? <SpinnerIcon /> : <SendIcon />}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ComposerIconButton({
-  label,
-  onClick,
-  disabled,
-  children,
-}: {
-  label: string;
-  onClick: () => void;
-  disabled?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      aria-label={label}
-      title={label}
-      className={cx(
-        "flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[#96979f]",
-        "transition-all duration-200 hover:bg-white/10 hover:text-[#e7e8ec] active:scale-90",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5b6ef5]",
-        "disabled:pointer-events-none disabled:opacity-50",
-      )}
-    >
-      {children}
-    </button>
-  );
-}
-
-// --- Icons ---
-
-function AttachIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M12 5v14m-7-7h14"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
+      <EmojiPicker
+        anchorEl={emojiAnchor}
+        onClose={() => setEmojiAnchor(null)}
+        onSelect={(emoji) => onChange(`${value}${emoji}`)}
       />
-    </svg>
-  );
-}
-
-function ImageIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M21 19V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M8.5 10a1.5 1.5 0 100-3 1.5 1.5 0 000 3z" fill="currentColor" />
-      <path d="M21 15l-5-5L5 21" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function MicIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M19 10v2a7 7 0 01-14 0v-2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M12 19v4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M8 23h8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function StickerIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M4 12a8 8 0 0116 0v3a5 5 0 01-5 5h-3a8 8 0 01-8-8z"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinejoin="round"
+      <StickerPicker
+        anchorEl={stickerAnchor}
+        onClose={() => setStickerAnchor(null)}
+        // No sticker packs are seeded on the backend yet, so this path is
+        // unverified against a live sticker id — revisit once real packs exist.
+        onSelect={(sticker) => onSend("", [sticker.id])}
       />
-      <path d="M15 20a5 5 0 005-5h-5v5z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function EmojiIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.8" />
-      <path d="M8.5 14s1.2 2 3.5 2 3.5-2 3.5-2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-      <circle cx="9" cy="9.5" r="1.2" fill="currentColor" />
-      <circle cx="15" cy="9.5" r="1.2" fill="currentColor" />
-    </svg>
-  );
-}
-
-function SendIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M4 20l16-8L4 4l2 7.5L4 20z"
-        fill="currentColor"
-      />
-    </svg>
-  );
-}
-
-function SpinnerIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true" className="animate-spin">
-      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" opacity="0.25" />
-      <path d="M21 12a9 9 0 00-9-9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-    </svg>
+    </Box>
   );
 }

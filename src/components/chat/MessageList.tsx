@@ -1,108 +1,165 @@
-import type { Attachment, Message, User } from "@/lib/types";
+"use client";
+
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import Box from "@mui/material/Box";
+import CircularProgress from "@mui/material/CircularProgress";
+import Typography from "@mui/material/Typography";
+import type { Message, User } from "@/lib/types";
 import { DateSeparator } from "./DateSeparator";
 import { MessageBubble } from "./MessageBubble";
 import { TypingIndicator } from "./TypingIndicator";
-import { cx } from "./cx";
 
 export interface MessageListProps {
-  /** Messages to render, in chronological order (oldest first). */
   messages: Message[];
-  /** Map of userId to `User`, used to resolve each message's sender. */
-  usersById: Record<string, User>;
-  /** ID of the current/local user, used to align own messages. */
-  currentUserId: string;
-  /** Users currently typing, rendered as a `TypingIndicator` at the bottom. */
-  typingUsers?: User[];
-  /** Called when the user opens an attachment within a message. */
-  onOpenAttachment?: (attachment: Attachment) => void;
-  /** Called when the user activates "reply" on a message. */
-  onReply?: (message: Message) => void;
-  /** Called when the user picks an emoji reaction for a message. */
-  onReact?: (message: Message, emoji: string) => void;
-  /** Content shown when `messages` is empty. */
+  currentUser: User;
+  otherUser: User;
+  typingUserName?: string;
+  onLoadOlder?: () => void;
+  hasMoreOlder?: boolean;
+  loadingOlder?: boolean;
+  onEditMessage?: (message: Message, newContent: string) => void;
+  onDeleteMessage?: (message: Message) => void;
+  onRetryMessage?: (message: Message) => void;
+  /** Scrolls to and briefly highlights this message (used by search "jump to message"). */
+  highlightMessageId?: string;
   emptyState?: React.ReactNode;
-  /** Optional extra class names for layout composition by the parent. */
-  className?: string;
 }
 
-/**
- * Scrollable, chronologically-grouped list of messages. Inserts
- * `DateSeparator`s between days and collapses consecutive messages from
- * the same sender. Purely presentational — scroll position, pagination,
- * and data fetching are the parent's responsibility.
- */
+const LOAD_OLDER_THRESHOLD_PX = 120;
+const NEAR_BOTTOM_THRESHOLD_PX = 150;
+
 export function MessageList({
-                              messages,
-                              usersById,
-                              currentUserId,
-                              typingUsers = [],
-                              onOpenAttachment,
-                              onReply,
-                              onReact,
-                              emptyState,
-                              className,
-                            }: MessageListProps) {
+  messages,
+  currentUser,
+  otherUser,
+  typingUserName,
+  onLoadOlder,
+  hasMoreOlder = false,
+  loadingOlder = false,
+  onEditMessage,
+  onDeleteMessage,
+  onRetryMessage,
+  highlightMessageId,
+  emptyState,
+}: MessageListProps) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const prevScrollHeight = useRef<number | null>(null);
+  const prevMessageCount = useRef(messages.length);
+  const isNearBottomRef = useRef(true);
+  const [highlighted, setHighlighted] = useState<string | null>(null);
+
+  // Preserve scroll position when older messages are prepended.
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+
+    if (prevScrollHeight.current !== null && messages.length > prevMessageCount.current) {
+      const addedHeight = el.scrollHeight - prevScrollHeight.current;
+      if (addedHeight > 0 && !isNearBottomRef.current) {
+        el.scrollTop += addedHeight;
+      } else if (isNearBottomRef.current) {
+        el.scrollTop = el.scrollHeight;
+      }
+    }
+    prevScrollHeight.current = null;
+    prevMessageCount.current = messages.length;
+  }, [messages]);
+
+  useEffect(() => {
+    if (!highlightMessageId) return;
+    const node = messageRefs.current.get(highlightMessageId);
+    if (node) {
+      node.scrollIntoView({ block: "center", behavior: "smooth" });
+      setHighlighted(highlightMessageId);
+      const timer = setTimeout(() => setHighlighted(null), 1600);
+      return () => clearTimeout(timer);
+    }
+  }, [highlightMessageId]);
+
+  function handleScroll() {
+    const el = scrollRef.current;
+    if (!el) return;
+
+    isNearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < NEAR_BOTTOM_THRESHOLD_PX;
+
+    if (el.scrollTop < LOAD_OLDER_THRESHOLD_PX && hasMoreOlder && !loadingOlder && onLoadOlder) {
+      prevScrollHeight.current = el.scrollHeight;
+      onLoadOlder();
+    }
+  }
+
   if (messages.length === 0) {
     return (
-      <div
-        className={cx(
-          "flex flex-1 items-center justify-center px-6 py-10 text-center text-sm text-[#6b6d76]",
-          className,
-        )}
-      >
-        {emptyState ?? "No messages yet. Say hello!"}
-      </div>
+      <Box sx={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", px: 3, textAlign: "center" }}>
+        <Typography variant="body2" color="text.secondary">
+          {emptyState ?? "No messages yet. Say hello!"}
+        </Typography>
+      </Box>
     );
   }
 
   return (
-    <div className={cx("flex flex-1 flex-col overflow-y-auto py-2", className)}>
+    <Box
+      ref={scrollRef}
+      onScroll={handleScroll}
+      sx={{ flex: 1, minHeight: 0, overflowY: "auto", py: 1 }}
+    >
+      {loadingOlder ? (
+        <Box sx={{ display: "flex", justifyContent: "center", py: 1.5 }}>
+          <CircularProgress size={18} />
+        </Box>
+      ) : null}
+
       {messages.map((message, index) => {
         const previous = messages[index - 1];
         const showDateSeparator = !previous || !isSameDay(previous.createdAt, message.createdAt);
-
         const isGroupedWithPrevious =
           !showDateSeparator &&
           Boolean(previous) &&
           previous.senderId === message.senderId &&
           minutesBetween(previous.createdAt, message.createdAt) < 5;
 
-        const sender = usersById[message.senderId];
-
-        if (!sender) return null;
+        const sender = message.senderId === currentUser.id ? currentUser : otherUser;
 
         return (
-          <div key={message.id}>
+          <div
+            key={message.id}
+            ref={(node) => {
+              if (node) messageRefs.current.set(message.id, node);
+              else messageRefs.current.delete(message.id);
+            }}
+            style={{
+              transition: "background-color 400ms ease",
+              backgroundColor: highlighted === message.id ? "rgba(91,110,245,0.18)" : "transparent",
+              borderRadius: 12,
+            }}
+          >
             {showDateSeparator ? <DateSeparator date={message.createdAt} /> : null}
             <MessageBubble
               message={message}
               sender={sender}
-              isOwnMessage={message.senderId === currentUserId}
+              isOwnMessage={message.senderId === currentUser.id}
               isGroupedWithPrevious={isGroupedWithPrevious}
-              onOpenAttachment={onOpenAttachment}
-              onReply={onReply}
-              onReact={onReact}
+              onEdit={onEditMessage}
+              onDelete={onDeleteMessage}
+              onRetry={onRetryMessage}
             />
           </div>
         );
       })}
 
-      <TypingIndicator users={typingUsers} />
-    </div>
+      <TypingIndicator typingUserName={typingUserName} />
+    </Box>
   );
 }
 
 function isSameDay(isoA: string, isoB: string): boolean {
   const a = new Date(isoA);
   const b = new Date(isoB);
-  return (
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate()
-  );
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 }
 
 function minutesBetween(isoA: string, isoB: string): number {
-  const diffMs = Math.abs(new Date(isoB).getTime() - new Date(isoA).getTime());
-  return diffMs / 60_000;
+  return Math.abs(new Date(isoB).getTime() - new Date(isoA).getTime()) / 60_000;
 }

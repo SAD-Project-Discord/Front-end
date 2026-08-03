@@ -1,49 +1,40 @@
-import type { User } from "@/lib/types";
-import { cx } from "./cx";
+import Box from "@mui/material/Box";
+import Typography from "@mui/material/Typography";
+import { keyframes } from "@mui/material/styles";
 
 export interface TypingIndicatorProps {
-  /** Users currently typing in this conversation. */
-  users: User[];
-  /** Optional extra class names for layout composition by the parent. */
-  className?: string;
+  /** Display name of the person currently typing. Renders nothing if absent. */
+  typingUserName?: string;
 }
 
-/**
- * Animated "someone is typing…" indicator. Renders nothing when `users`
- * is empty, so it can be mounted unconditionally by the parent.
- */
-export function TypingIndicator({ users, className }: TypingIndicatorProps) {
-  if (users.length === 0) return null;
+const bounce = keyframes`
+  0%, 80%, 100% { transform: translateY(0); opacity: 0.5; }
+  40% { transform: translateY(-3px); opacity: 1; }
+`;
+
+export function TypingIndicator({ typingUserName }: TypingIndicatorProps) {
+  if (!typingUserName) return null;
 
   return (
-    <div
-      role="status"
-      aria-live="polite"
-      className={cx("flex items-center gap-2 px-4 py-2 text-xs text-[#8a8b93]", className)}
-    >
-      <span className="flex h-6 items-center gap-0.5 rounded-full bg-[#2b2c34] px-2.5 py-1.5">
-        <Dot delayMs={0} />
-        <Dot delayMs={150} />
-        <Dot delayMs={300} />
-      </span>
-      <span className="truncate">{formatTypingLabel(users)}</span>
-    </div>
+    <Box role="status" aria-live="polite" sx={{ display: "flex", alignItems: "center", gap: 1, px: 2, py: 1 }}>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 0.4, borderRadius: 5, bgcolor: "action.selected", px: 1.25, py: 0.75 }}>
+        {[0, 1, 2].map((i) => (
+          <Box
+            key={i}
+            sx={{
+              width: 5,
+              height: 5,
+              borderRadius: "50%",
+              bgcolor: "text.secondary",
+              animation: `${bounce} 1s infinite`,
+              animationDelay: `${i * 0.15}s`,
+            }}
+          />
+        ))}
+      </Box>
+      <Typography variant="caption" color="text.secondary" noWrap>
+        {typingUserName} is typing…
+      </Typography>
+    </Box>
   );
-}
-
-function Dot({ delayMs }: { delayMs: number }) {
-  return (
-    <span
-      className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#96979f]"
-      style={{ animationDelay: `${delayMs}ms`, animationDuration: "900ms" }}
-    />
-  );
-}
-
-function formatTypingLabel(users: User[]): string {
-  const names = users.map((user) => user.displayName);
-
-  if (names.length === 1) return `${names[0]} is typing…`;
-  if (names.length === 2) return `${names[0]} and ${names[1]} are typing…`;
-  return `${names[0]}, ${names[1]}, and ${names.length - 2} others are typing…`;
 }

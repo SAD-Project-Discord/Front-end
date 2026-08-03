@@ -27,6 +27,29 @@ export interface MessagesResponse {
   };
 }
 
+export interface ScopedSearchResponse {
+  success: boolean;
+  data: ApiMessage[];
+  meta: {
+    page: number;
+    limit: number;
+    total: number;
+    total_pages: number;
+    has_more: boolean;
+  };
+}
+
+export interface GlobalSearchResponse {
+  success: boolean;
+  data: ApiMessage[];
+  meta: {
+    limit: number;
+    has_more: boolean;
+    total: number;
+    query: string;
+  };
+}
+
 export interface SendMessagePayload {
   receiver_id?: string;
   group_id?: string;
@@ -90,5 +113,23 @@ export const messagesApi = {
     return fetchApi<void>(`/messages/${messageId}`, {
       method: 'DELETE',
     });
+  },
+
+  /**
+   * Search message content/captions within a single direct conversation.
+   */
+  searchDirectMessages: (userId: string, query: string, limit: number = 20): Promise<ScopedSearchResponse> => {
+    return fetchApi<ScopedSearchResponse>(
+      `/messages/direct/${userId}/search/?q=${encodeURIComponent(query)}&limit=${limit}`,
+    );
+  },
+
+  /**
+   * Search across every space (direct, group, channel) the current user belongs to.
+   */
+  searchGlobal: (query: string, limit: number = 20): Promise<GlobalSearchResponse> => {
+    return fetchApi<GlobalSearchResponse>(
+      `/messages/search/global/?q=${encodeURIComponent(query)}&limit=${limit}`,
+    );
   },
 };

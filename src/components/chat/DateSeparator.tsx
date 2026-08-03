@@ -1,27 +1,20 @@
-import { cx } from "./cx";
+import Box from "@mui/material/Box";
+import Divider from "@mui/material/Divider";
+import Typography from "@mui/material/Typography";
 
 export interface DateSeparatorProps {
-  /** ISO 8601 date (or full timestamp) this separator represents. */
   date: string;
-  /** Optional extra class names for layout composition by the parent. */
-  className?: string;
 }
 
-/**
- * A horizontal divider with a centered date label, used to separate
- * groups of messages sent on different days within `MessageList`.
- */
-export function DateSeparator({ date, className }: DateSeparatorProps) {
+export function DateSeparator({ date }: DateSeparatorProps) {
   return (
-    <div
-      role="separator"
-      aria-label={formatDate(date)}
-      className={cx("flex items-center gap-3 px-4 py-3", className)}
-    >
-      <span className="h-px flex-1 bg-white/5" aria-hidden="true" />
-      <span className="shrink-0 text-xs font-medium text-[#6b6d76]">{formatDate(date)}</span>
-      <span className="h-px flex-1 bg-white/5" aria-hidden="true" />
-    </div>
+    <Box role="separator" aria-label={formatDate(date)} sx={{ display: "flex", alignItems: "center", gap: 1.5, px: 2, py: 1.5 }}>
+      <Divider sx={{ flex: 1 }} />
+      <Typography variant="caption" color="text.disabled" sx={{ flexShrink: 0, fontWeight: 500 }}>
+        {formatDate(date)}
+      </Typography>
+      <Divider sx={{ flex: 1 }} />
+    </Box>
   );
 }
 
@@ -34,9 +27,7 @@ function formatDate(isoTimestamp: string): string {
   yesterday.setDate(yesterday.getDate() - 1);
 
   const isSameDay = (a: Date, b: Date) =>
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate();
+    a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 
   if (isSameDay(date, today)) return "Today";
   if (isSameDay(date, yesterday)) return "Yesterday";

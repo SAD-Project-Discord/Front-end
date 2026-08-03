@@ -1,72 +1,34 @@
-import type { Attachment, MessageType } from "./attachment";
+/**
+ * Client-side lifecycle of an outgoing message. The backend has no delivery
+ * receipts (no "delivered"/"read" concept), so this only tracks the local
+ * send round-trip: optimistic -> confirmed, or failed.
+ */
+export type MessageDeliveryState = "sending" | "sent" | "failed";
 
 /**
- * Lifecycle status of an outgoing/incoming message.
- *
- * Ordered roughly by progression for outgoing messages:
- * sending -> sent -> delivered -> read, with `failed` as an error branch.
+ * A media attachment on a message. The backend only ever returns `{ id }`
+ * for media on a message (no filename/mimetype/size) — the richer fields
+ * are populated client-side, and only known for files the current session
+ * itself uploaded (see src/lib/chat/attachmentMetaCache.ts).
  */
-export type MessageStatus =
-  | "sending"
-  | "sent"
-  | "delivered"
-  | "read"
-  | "failed";
-
-/**
- * Re-exported here for convenience so consumers of `Message` can import
- * `MessageType` from a single place without reaching into `attachment.ts`.
- */
-export type { MessageType };
-
-/**
- * A single message within a conversation.
- *
- * Text/emoji messages populate `body` and omit `attachments`.
- * Media messages (sticker/image/video/audio/document/file) populate
- * `attachments` and may optionally include a `body` (e.g. a text caption
- * sent alongside media, distinct from a per-attachment `caption`).
- */
-export interface Message {
-  /** Stable unique identifier for the message. */
+export interface MessageAttachment {
   id: string;
+  fileName?: string;
+  mimeType?: string;
+  sizeBytes?: number;
+}
 
-  /** Identifier of the conversation this message belongs to. */
-  conversationId: string;
-
-  /** Identifier of the user who sent this message. */
+export interface Message {
+  id: string;
   senderId: string;
-
-  /** Primary content type of this message. */
-  type: MessageType;
-
-  /** Plain-text body. Required for `text` messages, optional otherwise. */
-  body?: string;
-
-  /**
-   * Media payload(s) for this message.
-   * Empty/undefined for `text` and `emoji` message types.
-   */
-  attachments?: Attachment[];
-
-  /** Delivery/read lifecycle status. */
-  status: MessageStatus;
-
-  /** ISO 8601 timestamp of when the message was created/sent. */
+  receiverId: string | null;
+  content: string;
+  attachments: MessageAttachment[];
+  isEdited: boolean;
+  isDeleted: boolean;
   createdAt: string;
-
-  /** ISO 8601 timestamp of the last edit, if the message was edited. */
-  editedAt?: string;
-
-  /** ISO 8601 timestamp of deletion, if soft-deleted. */
-  deletedAt?: string;
-
-  /** Identifier of the message this one is replying to, if any. */
-  replyToMessageId?: string;
-
-  /** Optional map of emoji reactions to arrays of user IDs who reacted. */
-  reactions?: Record<string, string[]>;
-
-  /** Client-generated identifier used for optimistic-send reconciliation. */
-  clientGeneratedId?: string;
+  updatedAt: string;
+  deliveryState: MessageDeliveryState;
+  /** Set only on optimistic messages, used to reconcile with the server's confirmed id. */
+  clientId?: string;
 }

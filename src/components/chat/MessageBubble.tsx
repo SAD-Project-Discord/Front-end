@@ -1,245 +1,219 @@
-import type { Attachment, Message, User } from "@/lib/types";
+"use client";
+
+import { useState } from "react";
+import Box from "@mui/material/Box";
+import Stack from "@mui/material/Stack";
+import Avatar from "@mui/material/Avatar";
+import Typography from "@mui/material/Typography";
+import IconButton from "@mui/material/IconButton";
+import CircularProgress from "@mui/material/CircularProgress";
+import Tooltip from "@mui/material/Tooltip";
+import TextField from "@mui/material/TextField";
+import Dialog from "@mui/material/Dialog";
+import DialogTitle from "@mui/material/DialogTitle";
+import DialogActions from "@mui/material/DialogActions";
+import Button from "@mui/material/Button";
+import EditRoundedIcon from "@mui/icons-material/EditRounded";
+import DeleteRoundedIcon from "@mui/icons-material/DeleteRounded";
+import CheckRoundedIcon from "@mui/icons-material/CheckRounded";
+import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
+import ErrorOutlineRoundedIcon from "@mui/icons-material/ErrorOutlineRounded";
+import type { Message, User } from "@/lib/types";
 import { AttachmentRenderer } from "./AttachmentRenderer";
-import { cx } from "./cx";
+import { chatSurfaces } from "@/lib/theme/theme";
 
 export interface MessageBubbleProps {
-  /** The message to render. */
   message: Message;
-  /** The user who sent this message (for avatar/name display). */
   sender: User;
-  /** Whether this message was sent by the current/local user. */
   isOwnMessage: boolean;
-  /**
-   * Whether this bubble is grouped with the previous message from the
-   * same sender (hides avatar/name, tightens vertical spacing).
-   */
   isGroupedWithPrevious?: boolean;
-  /** Called when the user opens an attachment within this message. */
-  onOpenAttachment?: (attachment: Attachment) => void;
-  /** Called when the user activates "reply" on this message. */
-  onReply?: (message: Message) => void;
-  /** Called when the user picks an emoji reaction for this message. */
-  onReact?: (message: Message, emoji: string) => void;
+  onEdit?: (message: Message, newContent: string) => void;
+  onDelete?: (message: Message) => void;
+  onRetry?: (message: Message) => void;
 }
 
-/**
- * A single chat message: avatar/name (when not grouped), body text or
- * attachments, timestamp, and delivery status. Purely presentational.
- */
 export function MessageBubble({
-                                message,
-                                sender,
-                                isOwnMessage,
-                                isGroupedWithPrevious = false,
-                                onOpenAttachment,
-                                onReply,
-                                onReact,
-                              }: MessageBubbleProps) {
-  const isDeleted = Boolean(message.deletedAt);
+  message,
+  sender,
+  isOwnMessage,
+  isGroupedWithPrevious = false,
+  onEdit,
+  onDelete,
+  onRetry,
+}: MessageBubbleProps) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [draft, setDraft] = useState(message.content);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+
+  const canModify = isOwnMessage && !message.isDeleted && message.deliveryState === "sent";
+
+  function commitEdit() {
+    const trimmed = draft.trim();
+    if (trimmed && trimmed !== message.content) {
+      onEdit?.(message, trimmed);
+    }
+    setIsEditing(false);
+  }
 
   return (
-    <div
-      className={cx(
-        "group/message flex items-end gap-2.5 px-3 sm:px-4",
-        isGroupedWithPrevious ? "mt-0.5" : "mt-3",
-        isOwnMessage && "flex-row-reverse",
-      )}
+    <Stack
+      direction={isOwnMessage ? "row-reverse" : "row"}
+      spacing={1.25}
+      alignItems="flex-end"
+      sx={{ px: { xs: 1.5, sm: 2 }, mt: isGroupedWithPrevious ? 0.25 : 1.5 }}
+      className="group/message"
     >
-      <div className="w-8 shrink-0">
+      <Box sx={{ width: 32, flexShrink: 0 }}>
         {!isGroupedWithPrevious ? (
-          <span className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-[#2f303a] text-xs font-medium text-[#e7e8ec]">
-            {sender.avatarUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={sender.avatarUrl} alt="" className="h-full w-full object-cover" />
-            ) : (
-              <span aria-hidden="true">{sender.displayName.charAt(0).toUpperCase()}</span>
-            )}
-          </span>
-        ) : null}
-      </div>
-
-      <div className={cx("flex max-w-[75%] flex-col sm:max-w-[60%]", isOwnMessage && "items-end")}>
-        {!isGroupedWithPrevious ? (
-          <span
-            className={cx(
-              "mb-1 px-1 text-xs font-medium text-[#8a8b93]",
-              isOwnMessage && "text-right",
-            )}
+          <Avatar
+            src={sender.avatarUrl || undefined}
+            alt=""
+            slotProps={{ img: { loading: "lazy", decoding: "async" } }}
+            sx={{ width: 32, height: 32, bgcolor: chatSurfaces.raised, fontSize: 13 }}
           >
+            {sender.displayName.charAt(0).toUpperCase()}
+          </Avatar>
+        ) : null}
+      </Box>
+
+      <Stack sx={{ maxWidth: { xs: "78%", sm: "60%" }, alignItems: isOwnMessage ? "flex-end" : "flex-start" }}>
+        {!isGroupedWithPrevious ? (
+          <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, px: 0.5, fontWeight: 500 }}>
             {sender.displayName}
-          </span>
+          </Typography>
         ) : null}
 
-        <div className={cx("flex items-end gap-1.5", isOwnMessage && "flex-row-reverse")}>
-          <div
-            className={cx(
-              "relative rounded-2xl px-3.5 py-2",
-              "transition-colors duration-150",
-              isOwnMessage
-                ? "rounded-br-md bg-[#5b6ef5] text-white"
-                : "rounded-bl-md bg-[#2b2c34] text-[#e7e8ec]",
-              isGroupedWithPrevious && (isOwnMessage ? "rounded-tr-2xl" : "rounded-tl-2xl"),
-            )}
+        <Stack direction={isOwnMessage ? "row-reverse" : "row"} spacing={0.5} alignItems="flex-end">
+          <Box
+            sx={{
+              position: "relative",
+              borderRadius: 3,
+              px: 1.75,
+              py: 1,
+              bgcolor: isOwnMessage ? "primary.main" : chatSurfaces.bubbleIncoming,
+              color: isOwnMessage ? "primary.contrastText" : "text.primary",
+              opacity: message.deliveryState === "sending" ? 0.7 : 1,
+              ...(isGroupedWithPrevious
+                ? isOwnMessage
+                  ? { borderTopRightRadius: 20 }
+                  : { borderTopLeftRadius: 20 }
+                : isOwnMessage
+                  ? { borderBottomRightRadius: 8 }
+                  : { borderBottomLeftRadius: 8 }),
+            }}
           >
-            {isDeleted ? (
-              <p className="text-[14px] italic leading-snug text-white/60">
+            {message.isDeleted ? (
+              <Typography variant="body2" sx={{ fontStyle: "italic", opacity: 0.6 }}>
                 This message was deleted
-              </p>
+              </Typography>
+            ) : isEditing ? (
+              <Stack spacing={1} sx={{ minWidth: 200 }}>
+                <TextField
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      commitEdit();
+                    } else if (e.key === "Escape") {
+                      setIsEditing(false);
+                      setDraft(message.content);
+                    }
+                  }}
+                  autoFocus
+                  multiline
+                  size="small"
+                  variant="standard"
+                  fullWidth
+                  slotProps={{ input: { disableUnderline: true, sx: { color: "inherit", fontSize: 14 } } }}
+                />
+                <Stack direction="row" spacing={0.5} justifyContent="flex-end">
+                  <IconButton size="small" onClick={() => setIsEditing(false)} sx={{ color: "inherit" }}>
+                    <CloseRoundedIcon fontSize="inherit" />
+                  </IconButton>
+                  <IconButton size="small" onClick={commitEdit} sx={{ color: "inherit" }}>
+                    <CheckRoundedIcon fontSize="inherit" />
+                  </IconButton>
+                </Stack>
+              </Stack>
             ) : (
               <>
-                {message.body && (message.type === "text" || message.type === "emoji") ? (
-                  <p
-                    className={cx(
-                      "whitespace-pre-wrap break-words leading-snug",
-                      message.type === "emoji" ? "text-4xl leading-tight" : "text-[14px]",
-                    )}
-                  >
-                    {message.body}
-                  </p>
+                {message.content ? (
+                  <Typography variant="body2" sx={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                    {message.content}
+                  </Typography>
                 ) : null}
-
-                {message.attachments && message.attachments.length > 0 ? (
-                  <div
-                    className={cx(
-                      "flex flex-col gap-2",
-                      message.body ? "mt-2" : undefined,
-                    )}
-                  >
+                {message.attachments.length > 0 ? (
+                  <Stack spacing={1} sx={{ mt: message.content ? 1 : 0 }}>
                     {message.attachments.map((attachment) => (
-                      <AttachmentRenderer
-                        key={attachment.id}
-                        attachment={attachment}
-                        onOpen={onOpenAttachment}
-                      />
+                      <AttachmentRenderer key={attachment.id} attachment={attachment} />
                     ))}
-                  </div>
+                  </Stack>
                 ) : null}
               </>
             )}
-          </div>
+          </Box>
 
-          {!isDeleted ? (
-            <MessageHoverActions onReply={onReply ? () => onReply(message) : undefined} onReact={onReact ? (emoji) => onReact(message, emoji) : undefined} />
+          {canModify && !isEditing ? (
+            <Stack
+              direction={isOwnMessage ? "row-reverse" : "row"}
+              sx={{ opacity: 0, transition: "opacity 120ms", ".group\\/message:hover &": { opacity: 1 } }}
+            >
+              {onEdit ? (
+                <IconButton size="small" onClick={() => setIsEditing(true)} aria-label="Edit message">
+                  <EditRoundedIcon fontSize="inherit" />
+                </IconButton>
+              ) : null}
+              {onDelete ? (
+                <IconButton size="small" onClick={() => setConfirmingDelete(true)} aria-label="Delete message">
+                  <DeleteRoundedIcon fontSize="inherit" />
+                </IconButton>
+              ) : null}
+            </Stack>
           ) : null}
-        </div>
+        </Stack>
 
-        <div
-          className={cx(
-            "mt-0.5 flex items-center gap-1 px-1 text-[11px] text-[#6b6d76]",
-            isOwnMessage && "flex-row-reverse",
-          )}
-        >
-          <time dateTime={message.createdAt}>{formatTime(message.createdAt)}</time>
-          {message.editedAt ? <span>(edited)</span> : null}
-          {isOwnMessage ? <MessageStatusIcon status={message.status} /> : null}
-        </div>
+        <Stack direction={isOwnMessage ? "row-reverse" : "row"} spacing={0.5} alignItems="center" sx={{ mt: 0.5, px: 0.5 }}>
+          <Typography variant="caption" color="text.disabled">
+            {formatTime(message.createdAt)}
+          </Typography>
+          {message.isEdited ? (
+            <Typography variant="caption" color="text.disabled">
+              (edited)
+            </Typography>
+          ) : null}
+          {message.deliveryState === "sending" ? <CircularProgress size={10} /> : null}
+          {message.deliveryState === "failed" ? (
+            <Tooltip title="Failed to send — click to retry">
+              <IconButton size="small" onClick={() => onRetry?.(message)} sx={{ p: 0.25, color: "error.main" }}>
+                <ErrorOutlineRoundedIcon sx={{ fontSize: 14 }} />
+              </IconButton>
+            </Tooltip>
+          ) : null}
+        </Stack>
+      </Stack>
 
-        {message.reactions && Object.keys(message.reactions).length > 0 ? (
-          <div className={cx("mt-1 flex flex-wrap gap-1", isOwnMessage && "justify-end")}>
-            {Object.entries(message.reactions).map(([emoji, userIds]) => (
-              <span
-                key={emoji}
-                className="flex items-center gap-1 rounded-full bg-[#2f303a] px-2 py-0.5 text-xs text-[#c3c4cb]"
-              >
-                <span aria-hidden="true">{emoji}</span>
-                <span>{userIds.length}</span>
-              </span>
-            ))}
-          </div>
-        ) : null}
-      </div>
-    </div>
+      <Dialog open={confirmingDelete} onClose={() => setConfirmingDelete(false)}>
+        <DialogTitle>Delete this message?</DialogTitle>
+        <DialogActions>
+          <Button onClick={() => setConfirmingDelete(false)}>Cancel</Button>
+          <Button
+            color="error"
+            onClick={() => {
+              onDelete?.(message);
+              setConfirmingDelete(false);
+            }}
+          >
+            Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Stack>
   );
-}
-
-function MessageHoverActions({
-                               onReply,
-                               onReact,
-                             }: {
-  onReply?: () => void;
-  onReact?: (emoji: string) => void;
-}) {
-  if (!onReply && !onReact) return null;
-
-  return (
-    <div
-      className={cx(
-        "flex items-center gap-0.5 opacity-0 transition-opacity duration-150",
-        "group-hover/message:opacity-100",
-      )}
-    >
-      {onReact ? (
-        <button
-          type="button"
-          onClick={() => onReact("👍")}
-          aria-label="React with thumbs up"
-          className="flex h-7 w-7 items-center justify-center rounded-full text-sm text-[#96979f] transition-colors hover:bg-white/5 hover:text-[#e7e8ec] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5b6ef5]"
-        >
-          🙂
-        </button>
-      ) : null}
-      {onReply ? (
-        <button
-          type="button"
-          onClick={onReply}
-          aria-label="Reply to message"
-          className="flex h-7 w-7 items-center justify-center rounded-full text-[#96979f] transition-colors hover:bg-white/5 hover:text-[#e7e8ec] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5b6ef5]"
-        >
-          <ReplyIcon />
-        </button>
-      ) : null}
-    </div>
-  );
-}
-
-function MessageStatusIcon({ status }: { status: Message["status"] }) {
-  switch (status) {
-    case "sending":
-      return <span aria-label="Sending">●</span>;
-    case "sent":
-      return <span aria-label="Sent">✓</span>;
-    case "delivered":
-      return <span aria-label="Delivered">✓✓</span>;
-    case "read":
-      return (
-        <span aria-label="Read" className="text-[#5b6ef5]">
-          ✓✓
-        </span>
-      );
-    case "failed":
-      return (
-        <span aria-label="Failed to send" className="text-red-400">
-          ⚠
-        </span>
-      );
-    default:
-      return null;
-  }
 }
 
 function formatTime(isoTimestamp: string): string {
   const date = new Date(isoTimestamp);
   if (Number.isNaN(date.getTime())) return "";
   return date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
-}
-
-function ReplyIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M9 10L4 15l5 5"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M4 15h11a5 5 0 005-5V6"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
 }
