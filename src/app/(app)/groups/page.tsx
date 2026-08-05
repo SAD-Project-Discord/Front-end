@@ -457,14 +457,14 @@ function GroupsPage() {
             Groups
           </Typography>
           <Tooltip title="Pending invitations">
-            <IconButton size="small" onClick={(e) => setInvitesAnchor(e.currentTarget)}>
+            <IconButton size="small" onClick={(e) => setInvitesAnchor(e.currentTarget)} aria-label="Pending invitations">
               <Badge badgeContent={pendingInviteCount} color="primary">
                 <NotificationsRounded fontSize="small" />
               </Badge>
             </IconButton>
           </Tooltip>
           <Tooltip title="New group">
-            <IconButton size="small" onClick={() => setCreateOpen(true)}>
+            <IconButton size="small" onClick={() => setCreateOpen(true)} aria-label="New group">
               <GroupAddRounded fontSize="small" />
             </IconButton>
           </Tooltip>
