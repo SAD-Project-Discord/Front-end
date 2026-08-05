@@ -59,8 +59,7 @@ export function MessageBubble({
     <Stack
       direction={isOwnMessage ? "row-reverse" : "row"}
       spacing={1.25}
-      alignItems="flex-end"
-      sx={{ px: { xs: 1.5, sm: 2 }, mt: isGroupedWithPrevious ? 0.25 : 1.5 }}
+      sx={{ alignItems: "flex-end", px: { xs: 1.5, sm: 2 }, mt: isGroupedWithPrevious ? 0.25 : 1.5 }}
       className="group/message"
     >
       <Box sx={{ width: 32, flexShrink: 0 }}>
@@ -83,7 +82,7 @@ export function MessageBubble({
           </Typography>
         ) : null}
 
-        <Stack direction={isOwnMessage ? "row-reverse" : "row"} spacing={0.5} alignItems="flex-end">
+        <Stack direction={isOwnMessage ? "row-reverse" : "row"} spacing={0.5} sx={{ alignItems: "flex-end" }}>
           <Box
             sx={{
               position: "relative",
@@ -127,7 +126,7 @@ export function MessageBubble({
                   fullWidth
                   slotProps={{ input: { disableUnderline: true, sx: { color: "inherit", fontSize: 14 } } }}
                 />
-                <Stack direction="row" spacing={0.5} justifyContent="flex-end">
+                <Stack direction="row" spacing={0.5} sx={{ justifyContent: "flex-end" }}>
                   <IconButton size="small" onClick={() => setIsEditing(false)} sx={{ color: "inherit" }}>
                     <CloseRoundedIcon fontSize="inherit" />
                   </IconButton>
@@ -173,7 +172,7 @@ export function MessageBubble({
           ) : null}
         </Stack>
 
-        <Stack direction={isOwnMessage ? "row-reverse" : "row"} spacing={0.5} alignItems="center" sx={{ mt: 0.5, px: 0.5 }}>
+        <Stack direction={isOwnMessage ? "row-reverse" : "row"} spacing={0.5} sx={{ alignItems: "center", mt: 0.5, px: 0.5 }}>
           <Typography variant="caption" color="text.disabled">
             {formatTime(message.createdAt)}
           </Typography>

@@ -19,9 +19,9 @@ export function ChatHeader({ otherUser, onBack, onToggleSearch, isSearchOpen = f
   return (
     <Stack
       direction="row"
-      alignItems="center"
       spacing={1.5}
       sx={{
+        alignItems: "center",
         height: 64,
         flexShrink: 0,
         px: { xs: 1.5, sm: 2 },
