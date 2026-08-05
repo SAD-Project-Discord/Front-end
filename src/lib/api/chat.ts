@@ -16,11 +16,12 @@ export type WsIncoming =
   | { event: "typing"; data: { user_id: string; is_typing: boolean; room: string } }
   | { event: "error"; data: { code: string; message: string } };
 
-type EventHandler = (data: any) => void;
+type EventDataOf<E extends WsIncoming["event"]> = Extract<WsIncoming, { event: E }>["data"];
+type EventHandler<E extends WsIncoming["event"] = WsIncoming["event"]> = (data: EventDataOf<E>) => void;
 
 export class ChatWebSocketClient {
   private ws: WebSocket | null = null;
-  private eventHandlers: Map<string, Set<EventHandler>> = new Map();
+  private eventHandlers: Map<string, Set<(data: unknown) => void>> = new Map();
 
   connect() {
     if (typeof window === 'undefined') return;
@@ -83,18 +84,18 @@ export class ChatWebSocketClient {
 
   // --- Event Emitters ---
 
-  on(event: WsIncoming['event'], handler: EventHandler) {
+  on<E extends WsIncoming['event']>(event: E, handler: EventHandler<E>) {
     if (!this.eventHandlers.has(event)) {
       this.eventHandlers.set(event, new Set());
     }
-    this.eventHandlers.get(event)?.add(handler);
+    this.eventHandlers.get(event)?.add(handler as (data: unknown) => void);
   }
 
-  off(event: WsIncoming['event'], handler: EventHandler) {
-    this.eventHandlers.get(event)?.delete(handler);
+  off<E extends WsIncoming['event']>(event: E, handler: EventHandler<E>) {
+    this.eventHandlers.get(event)?.delete(handler as (data: unknown) => void);
   }
 
-  private triggerEvent(event: string, data: any) {
+  private triggerEvent(event: string, data: unknown) {
     const handlers = this.eventHandlers.get(event);
     if (handlers) {
       handlers.forEach(handler => handler(data));

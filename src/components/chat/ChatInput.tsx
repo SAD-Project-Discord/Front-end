@@ -54,7 +54,7 @@ export function ChatInput({
   const readyAttachmentIds = pending.filter((p) => p.status === "done" && p.fileKey).map((p) => p.fileKey!);
   const canSend = (value.trim().length > 0 || readyAttachmentIds.length > 0) && !disabled && !isSending && !isUploading;
 
-  function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement | HTMLInputElement>) {
+  function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
       if (canSend) handleSend();
@@ -125,9 +125,8 @@ export function ChatInput({
 
       <Stack
         direction="row"
-        alignItems="flex-end"
         spacing={0.5}
-        sx={{ bgcolor: "action.hover", borderRadius: 4, px: 1, py: 0.5, opacity: disabled ? 0.6 : 1 }}
+        sx={{ alignItems: "flex-end", bgcolor: "action.hover", borderRadius: 4, px: 1, py: 0.5, opacity: disabled ? 0.6 : 1 }}
       >
         <input ref={fileInputRef} type="file" multiple hidden onChange={handleFileChange} disabled={disabled} />
         <IconButton
@@ -153,8 +152,7 @@ export function ChatInput({
           multiline
           maxRows={8}
           fullWidth
-          aria-label="Message"
-          slotProps={{ input: { disableUnderline: true } }}
+          slotProps={{ input: { disableUnderline: true }, htmlInput: { "aria-label": "Message" } }}
           sx={{ px: 0.5, py: 0.75 }}
         />
 

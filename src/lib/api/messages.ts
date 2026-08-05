@@ -90,7 +90,7 @@ export const messagesApi = {
    * Send a new message (Direct, Group, or Channel)
    */
   sendMessage: (payload: SendMessagePayload): Promise<{ success: boolean; data: ApiMessage }> => {
-    return fetchApi<{ success: boolean; data: ApiMessage }>('/messages', {
+    return fetchApi<{ success: boolean; data: ApiMessage }>('/messages/', {
       method: 'POST',
       body: JSON.stringify(payload),
     });

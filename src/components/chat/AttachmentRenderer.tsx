@@ -117,9 +117,8 @@ function FileAttachment({
   return (
     <Stack
       direction="row"
-      alignItems="center"
       spacing={1.5}
-      sx={{ bgcolor: chatSurfaces.raised, borderRadius: 3, px: 1.5, py: 1, maxWidth: 320 }}
+      sx={{ alignItems: "center", bgcolor: chatSurfaces.raised, borderRadius: 3, px: 1.5, py: 1, maxWidth: 320 }}
     >
       <Box
         sx={{

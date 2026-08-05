@@ -34,7 +34,7 @@ export function ConversationItem({ contact, isActive = false, onSelect }: Conver
       </ListItemAvatar>
 
       <Box sx={{ minWidth: 0, flex: 1 }}>
-        <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1}>
+        <Stack direction="row" spacing={1} sx={{ justifyContent: "space-between", alignItems: "center" }}>
           <Typography
             variant="body2"
             noWrap
@@ -48,7 +48,7 @@ export function ConversationItem({ contact, isActive = false, onSelect }: Conver
             </Typography>
           ) : null}
         </Stack>
-        <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1}>
+        <Stack direction="row" spacing={1} sx={{ justifyContent: "space-between", alignItems: "center" }}>
           <Typography variant="caption" color={hasUnread ? "text.primary" : "text.secondary"} noWrap sx={{ flex: 1 }}>
             {contact.lastMessagePreview || "No messages yet"}
           </Typography>
