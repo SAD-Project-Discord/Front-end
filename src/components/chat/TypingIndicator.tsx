@@ -3,8 +3,8 @@ import Typography from "@mui/material/Typography";
 import { keyframes } from "@mui/material/styles";
 
 export interface TypingIndicatorProps {
-  /** Display name of the person currently typing. Renders nothing if absent. */
-  typingUserName?: string;
+  /** Display names of whoever is currently typing. Renders nothing if empty. */
+  typingUserNames?: string[];
 }
 
 const bounce = keyframes`
@@ -12,8 +12,8 @@ const bounce = keyframes`
   40% { transform: translateY(-3px); opacity: 1; }
 `;
 
-export function TypingIndicator({ typingUserName }: TypingIndicatorProps) {
-  if (!typingUserName) return null;
+export function TypingIndicator({ typingUserNames = [] }: TypingIndicatorProps) {
+  if (typingUserNames.length === 0) return null;
 
   return (
     <Box role="status" aria-live="polite" sx={{ display: "flex", alignItems: "center", gap: 1, px: 2, py: 1 }}>
@@ -33,8 +33,14 @@ export function TypingIndicator({ typingUserName }: TypingIndicatorProps) {
         ))}
       </Box>
       <Typography variant="caption" color="text.secondary" noWrap>
-        {typingUserName} is typing…
+        {formatTypingLabel(typingUserNames)}
       </Typography>
     </Box>
   );
+}
+
+function formatTypingLabel(names: string[]): string {
+  if (names.length === 1) return `${names[0]} is typing…`;
+  if (names.length === 2) return `${names[0]} and ${names[1]} are typing…`;
+  return `${names[0]}, ${names[1]}, and ${names.length - 2} others are typing…`;
 }

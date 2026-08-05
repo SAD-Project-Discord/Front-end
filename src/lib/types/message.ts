@@ -5,23 +5,23 @@
  */
 export type MessageDeliveryState = "sending" | "sent" | "failed";
 
-/**
- * A media attachment on a message. The backend only ever returns `{ id }`
- * for media on a message (no filename/mimetype/size) — the richer fields
- * are populated client-side, and only known for files the current session
- * itself uploaded (see src/lib/chat/attachmentMetaCache.ts).
- */
+export type MessageAttachmentType = "image" | "video" | "audio" | "document" | "file";
+
+/** A media attachment on a message, straight from the backend's media object. */
 export interface MessageAttachment {
   id: string;
-  fileName?: string;
-  mimeType?: string;
-  sizeBytes?: number;
+  type: MessageAttachmentType;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  fileUrl: string;
 }
 
 export interface Message {
   id: string;
   senderId: string;
   receiverId: string | null;
+  groupId: string | null;
   content: string;
   attachments: MessageAttachment[];
   isEdited: boolean;

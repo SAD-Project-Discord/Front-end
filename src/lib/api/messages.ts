@@ -1,6 +1,17 @@
 // src/lib/api/messages.ts
 import { fetchApi } from './api';
 
+export type ApiMediaType = "image" | "video" | "audio" | "document" | "file";
+
+export interface ApiMedia {
+  id: string;
+  media_type: ApiMediaType;
+  filename: string;
+  content_type: string;
+  size: number;
+  file_url: string;
+}
+
 export interface ApiMessage {
   id: string;
   sender_id: string;
@@ -12,7 +23,7 @@ export interface ApiMessage {
   reply_to_id: string | null;
   is_edited: boolean;
   is_deleted: boolean;
-  media: { id: string }[];
+  media: ApiMedia[];
   reactions: unknown[];
   created_at: string;
   updated_at: string;
@@ -71,10 +82,12 @@ export const messagesApi = {
   },
 
   /**
-   * Get group message history
+   * Get group message history with cursor pagination
    */
-  getGroupMessages: (groupId: string, limit: number = 50): Promise<MessagesResponse> => {
-    return fetchApi<MessagesResponse>(`/messages/groups/${groupId}?limit=${limit}`);
+  getGroupMessages: (groupId: string, limit: number = 50, before?: string): Promise<MessagesResponse> => {
+    let query = `?limit=${limit}`;
+    if (before) query += `&before=${before}`;
+    return fetchApi<MessagesResponse>(`/messages/groups/${groupId}${query}`);
   },
 
   /**
@@ -121,6 +134,15 @@ export const messagesApi = {
   searchDirectMessages: (userId: string, query: string, limit: number = 20): Promise<ScopedSearchResponse> => {
     return fetchApi<ScopedSearchResponse>(
       `/messages/direct/${userId}/search/?q=${encodeURIComponent(query)}&limit=${limit}`,
+    );
+  },
+
+  /**
+   * Search message content/captions within a single group.
+   */
+  searchGroupMessages: (groupId: string, query: string, limit: number = 20): Promise<ScopedSearchResponse> => {
+    return fetchApi<ScopedSearchResponse>(
+      `/messages/groups/${groupId}/search/?q=${encodeURIComponent(query)}&limit=${limit}`,
     );
   },
 

@@ -5,17 +5,28 @@ import Typography from "@mui/material/Typography";
 import IconButton from "@mui/material/IconButton";
 import ArrowBackRoundedIcon from "@mui/icons-material/ArrowBackRounded";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
-import type { User } from "@/lib/types";
 import { chatSurfaces } from "@/lib/theme/theme";
 
 export interface ChatHeaderProps {
-  otherUser: User;
+  title: string;
+  subtitle?: string;
+  avatarUrl?: string;
   onBack?: () => void;
   onToggleSearch?: () => void;
   isSearchOpen?: boolean;
+  /** Extra actions rendered after the search button (e.g. a members icon for groups). */
+  actions?: React.ReactNode;
 }
 
-export function ChatHeader({ otherUser, onBack, onToggleSearch, isSearchOpen = false }: ChatHeaderProps) {
+export function ChatHeader({
+  title,
+  subtitle,
+  avatarUrl,
+  onBack,
+  onToggleSearch,
+  isSearchOpen = false,
+  actions,
+}: ChatHeaderProps) {
   return (
     <Stack
       direction="row"
@@ -37,21 +48,23 @@ export function ChatHeader({ otherUser, onBack, onToggleSearch, isSearchOpen = f
       ) : null}
 
       <Avatar
-        src={otherUser.avatarUrl || undefined}
+        src={avatarUrl || undefined}
         alt=""
         slotProps={{ img: { loading: "lazy", decoding: "async" } }}
         sx={{ width: 36, height: 36, bgcolor: chatSurfaces.raised, fontSize: 14 }}
       >
-        {otherUser.displayName.charAt(0).toUpperCase()}
+        {title.charAt(0).toUpperCase()}
       </Avatar>
 
       <Box sx={{ minWidth: 0, flex: 1 }}>
         <Typography variant="subtitle2" noWrap sx={{ lineHeight: 1.3 }}>
-          {otherUser.displayName}
+          {title}
         </Typography>
-        <Typography variant="caption" color="text.secondary" noWrap sx={{ display: "block", lineHeight: 1.3 }}>
-          @{otherUser.username}
-        </Typography>
+        {subtitle ? (
+          <Typography variant="caption" color="text.secondary" noWrap sx={{ display: "block", lineHeight: 1.3 }}>
+            {subtitle}
+          </Typography>
+        ) : null}
       </Box>
 
       {onToggleSearch ? (
@@ -63,6 +76,8 @@ export function ChatHeader({ otherUser, onBack, onToggleSearch, isSearchOpen = f
           <SearchRoundedIcon />
         </IconButton>
       ) : null}
+
+      {actions}
     </Stack>
   );
 }

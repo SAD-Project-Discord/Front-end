@@ -15,7 +15,7 @@ import StickyNote2RoundedIcon from "@mui/icons-material/StickyNote2Rounded";
 import SendRoundedIcon from "@mui/icons-material/SendRounded";
 import ErrorOutlineRoundedIcon from "@mui/icons-material/ErrorOutlineRounded";
 import { storageApi } from "@/lib/api/storage";
-import { setAttachmentMeta } from "@/lib/chat/attachmentMetaCache";
+import type { MessageAttachment } from "@/lib/types";
 import { EmojiPicker } from "./EmojiPicker";
 import { StickerPicker } from "./StickerPicker";
 
@@ -23,13 +23,13 @@ interface PendingAttachment {
   localId: string;
   file: File;
   status: "uploading" | "done" | "error";
-  fileKey?: string;
+  attachment?: MessageAttachment;
 }
 
 export interface ChatInputProps {
   value: string;
   onChange: (value: string) => void;
-  onSend: (content: string, attachmentIds: string[]) => void;
+  onSend: (content: string, attachments: MessageAttachment[]) => void;
   onTyping?: () => void;
   disabled?: boolean;
   isSending?: boolean;
@@ -51,8 +51,8 @@ export function ChatInput({
   const [stickerAnchor, setStickerAnchor] = useState<HTMLElement | null>(null);
 
   const isUploading = pending.some((p) => p.status === "uploading");
-  const readyAttachmentIds = pending.filter((p) => p.status === "done" && p.fileKey).map((p) => p.fileKey!);
-  const canSend = (value.trim().length > 0 || readyAttachmentIds.length > 0) && !disabled && !isSending && !isUploading;
+  const readyAttachments = pending.filter((p) => p.status === "done" && p.attachment).map((p) => p.attachment!);
+  const canSend = (value.trim().length > 0 || readyAttachments.length > 0) && !disabled && !isSending && !isUploading;
 
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     if (event.key === "Enter" && !event.shiftKey) {
@@ -62,7 +62,7 @@ export function ChatInput({
   }
 
   function handleSend() {
-    onSend(value.trim(), readyAttachmentIds);
+    onSend(value.trim(), readyAttachments);
     setPending([]);
   }
 
@@ -81,14 +81,15 @@ export function ChatInput({
     storageApi
       .upload(file)
       .then((res) => {
-        setAttachmentMeta(res.data.file_key, {
-          fileName: file.name,
-          mimeType: file.type,
-          sizeBytes: file.size,
-        });
-        setPending((prev) =>
-          prev.map((p) => (p.localId === localId ? { ...p, status: "done", fileKey: res.data.file_key } : p)),
-        );
+        const attachment: MessageAttachment = {
+          id: res.data.id,
+          type: res.data.media_type,
+          fileName: res.data.filename,
+          mimeType: res.data.content_type,
+          sizeBytes: res.data.size,
+          fileUrl: res.data.file_url,
+        };
+        setPending((prev) => prev.map((p) => (p.localId === localId ? { ...p, status: "done", attachment } : p)));
       })
       .catch(() => {
         setPending((prev) => prev.map((p) => (p.localId === localId ? { ...p, status: "error" } : p)));
@@ -201,7 +202,11 @@ export function ChatInput({
         onClose={() => setStickerAnchor(null)}
         // No sticker packs are seeded on the backend yet, so this path is
         // unverified against a live sticker id — revisit once real packs exist.
-        onSelect={(sticker) => onSend("", [sticker.id])}
+        onSelect={(sticker) =>
+          onSend("", [
+            { id: sticker.id, type: "image", fileName: "sticker", mimeType: "image/png", sizeBytes: 0, fileUrl: sticker.url },
+          ])
+        }
       />
     </Box>
   );
