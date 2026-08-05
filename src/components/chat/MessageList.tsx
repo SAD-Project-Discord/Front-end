@@ -11,9 +11,10 @@ import { TypingIndicator } from "./TypingIndicator";
 
 export interface MessageListProps {
   messages: Message[];
-  currentUser: User;
-  otherUser: User;
-  typingUserName?: string;
+  currentUserId: string;
+  /** Every known participant in this conversation, keyed by user id (including the current user). */
+  participantsById: Record<string, User>;
+  typingUserNames?: string[];
   onLoadOlder?: () => void;
   hasMoreOlder?: boolean;
   loadingOlder?: boolean;
@@ -28,11 +29,13 @@ export interface MessageListProps {
 const LOAD_OLDER_THRESHOLD_PX = 120;
 const NEAR_BOTTOM_THRESHOLD_PX = 150;
 
+const UNKNOWN_USER: User = { id: "", username: "unknown", displayName: "Unknown user" };
+
 export function MessageList({
   messages,
-  currentUser,
-  otherUser,
-  typingUserName,
+  currentUserId,
+  participantsById,
+  typingUserNames,
   onLoadOlder,
   hasMoreOlder = false,
   loadingOlder = false,
@@ -120,7 +123,7 @@ export function MessageList({
           previous.senderId === message.senderId &&
           minutesBetween(previous.createdAt, message.createdAt) < 5;
 
-        const sender = message.senderId === currentUser.id ? currentUser : otherUser;
+        const sender = participantsById[message.senderId] ?? UNKNOWN_USER;
 
         return (
           <div
@@ -139,7 +142,7 @@ export function MessageList({
             <MessageBubble
               message={message}
               sender={sender}
-              isOwnMessage={message.senderId === currentUser.id}
+              isOwnMessage={message.senderId === currentUserId}
               isGroupedWithPrevious={isGroupedWithPrevious}
               onEdit={onEditMessage}
               onDelete={onDeleteMessage}
@@ -149,7 +152,7 @@ export function MessageList({
         );
       })}
 
-      <TypingIndicator typingUserName={typingUserName} />
+      <TypingIndicator typingUserNames={typingUserNames} />
     </Box>
   );
 }

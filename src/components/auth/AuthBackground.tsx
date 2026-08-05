@@ -1,11 +1,9 @@
 "use client";
 
 import { Box } from "@mui/material";
-import { palette } from "@/theme/theme";
 
 /**
- * Full-viewport backdrop: soft lavender wash with a faint dot grid,
- * plus the thin near-black bar along the very top edge from the mock.
+ * Full-viewport backdrop: page background with a faint dot grid.
  * Centers whatever's passed as children (the auth card).
  */
 export default function AuthBackground({ children }: { children: React.ReactNode }) {
@@ -14,10 +12,11 @@ export default function AuthBackground({ children }: { children: React.ReactNode
       sx={{
         minHeight: "100vh",
         width: "100%",
-        bgcolor: palette.backdrop,
-        backgroundImage: `radial-gradient(${palette.backdropDot} 1px, transparent 1px)`,
+        bgcolor: "background.default",
+        backgroundImage: "radial-gradient(rgba(255,255,255,0.06) 1px, transparent 1px)",
         backgroundSize: "28px 28px",
-        borderTop: `6px solid ${palette.ink}`,
+        borderTop: "6px solid",
+        borderColor: "primary.main",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",

@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
@@ -16,12 +15,10 @@ import Button from "@mui/material/Button";
 import SearchRounded from "@mui/icons-material/SearchRounded";
 import AddCommentRounded from "@mui/icons-material/AddCommentRounded";
 import TravelExploreRounded from "@mui/icons-material/TravelExploreRounded";
-import LogoutRounded from "@mui/icons-material/LogoutRounded";
 import KeyboardDoubleArrowDownRounded from "@mui/icons-material/KeyboardDoubleArrowDownRounded";
 
-import type { Message, User } from "@/lib/types";
-import { clearSession, getCachedUser, getRefreshToken, setCachedUser } from "@/lib/auth";
-import { authApi } from "@/lib/api/auth";
+import type { Message, MessageAttachment, User } from "@/lib/types";
+import { getCachedUser, setCachedUser } from "@/lib/auth";
 import { usersApi } from "@/lib/api/users";
 import { messagesApi } from "@/lib/api/messages";
 import type { ApiMessage } from "@/lib/api/messages";
@@ -73,8 +70,6 @@ function sortByRecentActivity(contacts: DmContact[]): DmContact[] {
 }
 
 export default function DirectMessagesPage() {
-  const router = useRouter();
-
   // Seeded synchronously from localStorage rather than via an effect: this
   // page is only ever mounted client-side (the protected layout withholds
   // rendering it until after the auth check settles), so there's no SSR
@@ -126,6 +121,13 @@ export default function DirectMessagesPage() {
 
   const activeContact = useMemo(() => contacts.find((c) => c.userId === activeContactId), [contacts, activeContactId]);
   const activeUser = activeContact ? contactToUser(activeContact) : null;
+
+  const participantsById = useMemo(() => {
+    const map: Record<string, User> = {};
+    if (currentUser) map[currentUser.id] = currentUser;
+    if (activeUser) map[activeUser.id] = activeUser;
+    return map;
+  }, [currentUser, activeUser]);
 
   const filteredContacts = useMemo(() => {
     const query = sidebarFilter.trim().toLowerCase();
@@ -336,9 +338,9 @@ export default function DirectMessagesPage() {
   }, [activeContactId]);
 
   const handleSend = useCallback(
-    (content: string, attachmentIds: string[]) => {
+    (content: string, attachments: MessageAttachment[]) => {
       if (!activeContactId || !currentUser) return;
-      if (!content && attachmentIds.length === 0) return;
+      if (!content && attachments.length === 0) return;
 
       const clientId = `local_${Date.now()}_${Math.random().toString(36).slice(2)}`;
       const now = new Date().toISOString();
@@ -347,8 +349,9 @@ export default function DirectMessagesPage() {
         clientId,
         senderId: currentUser.id,
         receiverId: activeContactId,
+        groupId: null,
         content,
-        attachments: attachmentIds.map((id) => ({ id })),
+        attachments,
         isEdited: false,
         isDeleted: false,
         createdAt: now,
@@ -364,7 +367,7 @@ export default function DirectMessagesPage() {
         .sendMessage({
           receiver_id: activeContactId,
           content,
-          media_ids: attachmentIds.length > 0 ? attachmentIds : undefined,
+          media_ids: attachments.length > 0 ? attachments.map((a) => a.id) : undefined,
         })
         .then((res) => {
           const confirmed = apiMessageToMessage(res.data);
@@ -479,6 +482,7 @@ export default function DirectMessagesPage() {
           id: result.id,
           senderId: result.senderId,
           receiverId: result.senderId === result.otherUserId ? (me?.id ?? null) : result.otherUserId,
+          groupId: null,
           content: result.content,
           attachments: [],
           isEdited: false,
@@ -499,17 +503,6 @@ export default function DirectMessagesPage() {
     },
     [messages],
   );
-
-  async function handleLogout() {
-    const refreshToken = getRefreshToken();
-    try {
-      if (refreshToken) await authApi.logout(refreshToken);
-    } catch {
-      // best-effort — clear the local session regardless
-    }
-    clearSession();
-    router.push("/login");
-  }
 
   const isConversationOpen = Boolean(activeContactId);
 
@@ -558,11 +551,6 @@ export default function DirectMessagesPage() {
               <AddCommentRounded fontSize="small" />
             </IconButton>
           </Tooltip>
-          <Tooltip title="Log out">
-            <IconButton size="small" onClick={handleLogout}>
-              <LogoutRounded fontSize="small" />
-            </IconButton>
-          </Tooltip>
         </Stack>
 
         <Box sx={{ px: 2, pb: 1.5 }}>
@@ -609,7 +597,9 @@ export default function DirectMessagesPage() {
         {activeUser ? (
           <>
             <ChatHeader
-              otherUser={activeUser}
+              title={activeUser.displayName}
+              subtitle={`@${activeUser.username}`}
+              avatarUrl={activeUser.avatarUrl}
               onBack={() => setActiveContactId(undefined)}
               onToggleSearch={() => setConversationSearchOpen((v) => !v)}
               isSearchOpen={conversationSearchOpen}
@@ -629,9 +619,9 @@ export default function DirectMessagesPage() {
 
             <MessageList
               messages={messages}
-              currentUser={currentUser}
-              otherUser={activeUser}
-              typingUserName={typingFromOther ? activeUser.displayName : undefined}
+              currentUserId={currentUser.id}
+              participantsById={participantsById}
+              typingUserNames={typingFromOther ? [activeUser.displayName] : undefined}
               onLoadOlder={handleLoadOlder}
               hasMoreOlder={hasMoreOlder}
               loadingOlder={loadingOlder}

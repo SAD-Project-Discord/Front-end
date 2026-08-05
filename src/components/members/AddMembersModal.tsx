@@ -1,144 +1,136 @@
 "use client";
 
-import { useEffect, useState, type ChangeEvent } from "react";
+import { useState } from "react";
 import {
   Alert,
   Avatar,
   Box,
   Button,
-  Chip,
   CircularProgress,
   Dialog,
+  DialogActions,
   DialogContent,
   DialogTitle,
   IconButton,
   List,
   ListItem,
   ListItemAvatar,
-  ListItemButton,
-  ListItemIcon,
   ListItemText,
-  Checkbox,
   Stack,
   Typography,
 } from "@mui/material";
-import { Search, Close, PersonAdd } from "@mui/icons-material";
-import { observer } from "mobx-react-lite";
+import { Close, PersonAdd } from "@mui/icons-material";
 import IconTextField from "@/components/auth/IconTextField";
-import contactStore from "@/stores/ContactStore";
-import userStore from "@/stores/UserStore";
+import { Search } from "@mui/icons-material";
+import userService from "@/services/user.service";
 import authStore from "@/stores/AuthStore";
 import type { User } from "@/types/auth";
 
-interface AddMembersModalProps {
+export interface AddMembersModalProps {
   open: boolean;
   onClose: () => void;
-  /** Callback that actually adds/invites the chosen users. Returns true on success. */
+  /** Callback that actually sends the invitations. Returns true on success. */
   onSubmit: (userIds: string[]) => Promise<boolean>;
-  /** User ids already in the target group/channel — marked and unchoosable. */
+  /** User ids already in the group — looked up but shown as already-a-member instead of addable. */
   existingMemberIds: string[];
   title?: string;
   subtitle?: string;
   submitLabel?: string;
-  /** Optional controlled submit state (e.g. from a store). Falls back to internal state. */
   isSubmitting?: boolean;
   submitError?: string | null;
 }
-
-const SEARCH_DEBOUNCE_MS = 300;
 
 function getInitials(user: User): string {
   const source = user.name || user.username || "";
   return source.trim().charAt(0).toUpperCase();
 }
 
-function AddMembersModal({
+export default function AddMembersModal({
   open,
   onClose,
   onSubmit,
   existingMemberIds,
   title = "Invite People",
-  subtitle = "Add people from your contacts, or search everyone.",
-  submitLabel = "Add",
+  subtitle = "Enter a user's ID to invite them (ask them for it from their profile).",
+  submitLabel = "Invite",
   isSubmitting,
   submitError,
 }: AddMembersModalProps) {
-  const [query, setQuery] = useState("");
-  const [selected, setSelected] = useState<Map<string, User>>(new Map());
+  const [userId, setUserId] = useState("");
+  const [lookupError, setLookupError] = useState<string | null>(null);
+  const [looking, setLooking] = useState(false);
+  const [pending, setPending] = useState<Map<string, User>>(new Map());
   const [localSubmitError, setLocalSubmitError] = useState<string | null>(null);
   const [localSubmitting, setLocalSubmitting] = useState(false);
 
-  useEffect(() => {
-    // Reset of local form state happens in handleClose (every close path runs it),
-    // so the open effect only drives external side-effects.
-    if (open) {
-      userStore.clearSearch();
-      contactStore.loadContacts();
-    }
-  }, [open]);
-
-  useEffect(() => {
-    const handle = setTimeout(() => {
-      userStore.searchUsers(query);
-    }, SEARCH_DEBOUNCE_MS);
-
-    return () => clearTimeout(handle);
-  }, [query]);
-
   const submitting = Boolean(isSubmitting) || localSubmitting;
   const displayError = submitError ?? localSubmitError;
-
-  const searching = query.trim().length > 0;
   const existingSet = new Set(existingMemberIds);
-  const selfId = authStore.user?.id;
 
-  const users = (searching ? userStore.searchResults : contactStore.contacts.map((c) => c.user))
-    .filter((user) => user.id !== selfId);
+  async function handleLookup() {
+    const trimmed = userId.trim();
+    if (!trimmed) return;
 
-  const listLoading = searching ? userStore.isSearching : contactStore.isLoading;
-  const loadError = searching ? userStore.error : contactStore.error;
+    if (trimmed === authStore.user?.id) {
+      setLookupError("That's your own user id.");
+      return;
+    }
 
-  const toggle = (user: User) => {
-    if (existingSet.has(user.id)) return;
-    setSelected((prev) => {
+    if (existingSet.has(trimmed) || pending.has(trimmed)) {
+      setLookupError("That person is already in the list.");
+      return;
+    }
+
+    setLooking(true);
+    setLookupError(null);
+    try {
+      const user = await userService.getUser(trimmed);
+      setPending((prev) => new Map(prev).set(user.id, user));
+      setUserId("");
+    } catch {
+      setLookupError("Couldn't find a user with that ID.");
+    } finally {
+      setLooking(false);
+    }
+  }
+
+  function removePending(id: string) {
+    setPending((prev) => {
       const next = new Map(prev);
-      if (next.has(user.id)) {
-        next.delete(user.id);
-      } else {
-        next.set(user.id, user);
-      }
+      next.delete(id);
       return next;
     });
-  };
+  }
 
-  const handleClose = () => {
-    if (submitting) return;
-    setQuery("");
-    setSelected(new Map());
+  function reset() {
+    setUserId("");
+    setLookupError(null);
+    setPending(new Map());
     setLocalSubmitError(null);
-    userStore.clearSearch();
-    onClose();
-  };
+  }
 
-  const handleSubmit = async () => {
-    const ids = Array.from(selected.keys());
+  function handleClose() {
+    if (submitting) return;
+    reset();
+    onClose();
+  }
+
+  async function handleSubmit() {
+    const ids = Array.from(pending.keys());
     if (ids.length === 0) return;
 
     setLocalSubmitError(null);
     setLocalSubmitting(true);
-
     const ok = await onSubmit(ids);
-
     setLocalSubmitting(false);
 
     if (ok) {
-      handleClose();
+      reset();
+      onClose();
     } else {
-      setLocalSubmitError("Could not add the selected people. Please try again.");
+      setLocalSubmitError("Could not invite the selected people. Please try again.");
     }
-  };
-
-  const selectedCount = selected.size;
+  }
 
   return (
     <Dialog
@@ -146,14 +138,7 @@ function AddMembersModal({
       onClose={handleClose}
       fullWidth
       maxWidth="xs"
-      slotProps={{
-        paper: {
-          sx: {
-            borderRadius: 3,
-            p: { xs: 1, sm: 1.5 },
-          },
-        },
-      }}
+      slotProps={{ paper: { sx: { borderRadius: 3, p: { xs: 1, sm: 1.5 } } } }}
     >
       <DialogTitle sx={{ pb: 1 }}>
         <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
@@ -165,124 +150,88 @@ function AddMembersModal({
               {subtitle}
             </Typography>
           </Box>
-          <IconButton
-            aria-label="Close"
-            onClick={handleClose}
-            disabled={submitting}
-            edge="end"
-            size="small"
-          >
+          <IconButton aria-label="Close" onClick={handleClose} disabled={submitting} edge="end" size="small">
             <Close fontSize="small" />
           </IconButton>
         </Box>
       </DialogTitle>
 
       <DialogContent>
-        <IconTextField
-          label="Search"
-          icon={Search}
-          placeholder="Search by name or username"
-          value={query}
-          onChange={(event: ChangeEvent<HTMLInputElement>) => setQuery(event.target.value)}
-        />
+        <Stack direction="row" spacing={1} sx={{ alignItems: "flex-start" }}>
+          <Box sx={{ flex: 1 }}>
+            <IconTextField
+              label="User ID"
+              icon={Search}
+              placeholder="usr_xxxxxxxxxxxx"
+              value={userId}
+              onChange={(e) => setUserId(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleLookup()}
+              error={Boolean(lookupError)}
+              helperText={lookupError ?? undefined}
+            />
+          </Box>
+          <Button
+            variant="outlined"
+            sx={{ mt: 0.25 }}
+            onClick={handleLookup}
+            disabled={looking || !userId.trim()}
+          >
+            {looking ? <CircularProgress size={18} /> : "Add"}
+          </Button>
+        </Stack>
 
-        {loadError ? (
-          <Alert severity="error" sx={{ mb: 1.5 }}>
-            {loadError}
-          </Alert>
-        ) : null}
-
-        <Box
-          sx={{
-            minHeight: 200,
-            maxHeight: 320,
-            overflowY: "auto",
-            border: "1px solid",
-            borderColor: "divider",
-            borderRadius: 2,
-          }}
-        >
-          {listLoading ? (
-            <Box sx={{ display: "flex", justifyContent: "center", py: 5 }}>
-              <CircularProgress size={26} />
-            </Box>
-          ) : users.length === 0 ? (
-            <Box sx={{ display: "flex", justifyContent: "center", py: 5, px: 2 }}>
-              <Typography variant="body2" sx={{ color: "text.secondary", textAlign: "center" }}>
-                {searching ? "No users found." : "You have no contacts yet. Try searching."}
-              </Typography>
-            </Box>
-          ) : (
-            <List disablePadding>
-              {users.map((user) => {
-                const already = existingSet.has(user.id);
-                const checked = already || selected.has(user.id);
-
-                return (
-                  <ListItem
-                    key={user.id}
-                    disablePadding
-                    secondaryAction={
-                      already ? <Chip label="Member" size="small" /> : null
-                    }
-                  >
-                    <ListItemButton dense disabled={already} onClick={() => toggle(user)}>
-                      <ListItemIcon sx={{ minWidth: 0, mr: 1 }}>
-                        <Checkbox
-                          edge="start"
-                          checked={checked}
-                          disabled={already}
-                          tabIndex={-1}
-                          disableRipple
-                        />
-                      </ListItemIcon>
-                      <ListItemAvatar>
-                        <Avatar src={user.avatar_url || undefined}>{getInitials(user)}</Avatar>
-                      </ListItemAvatar>
-                      <ListItemText primary={user.name} secondary={`@${user.username}`} />
-                    </ListItemButton>
-                  </ListItem>
-                );
-              })}
-            </List>
-          )}
-        </Box>
+        {pending.size > 0 ? (
+          <List
+            dense
+            sx={{ maxHeight: 240, overflowY: "auto", border: "1px solid", borderColor: "divider", borderRadius: 2 }}
+          >
+            {Array.from(pending.values()).map((user) => (
+              <ListItem
+                key={user.id}
+                secondaryAction={
+                  <IconButton edge="end" size="small" onClick={() => removePending(user.id)} disabled={submitting}>
+                    <Close fontSize="small" />
+                  </IconButton>
+                }
+              >
+                <ListItemAvatar>
+                  <Avatar src={user.avatar_url || undefined}>{getInitials(user)}</Avatar>
+                </ListItemAvatar>
+                <ListItemText primary={user.name} secondary={`@${user.username}`} />
+              </ListItem>
+            ))}
+          </List>
+        ) : (
+          <Box sx={{ py: 3, textAlign: "center" }}>
+            <Typography variant="body2" color="text.secondary">
+              No one added yet — look someone up by their user ID above.
+            </Typography>
+          </Box>
+        )}
 
         {displayError ? (
           <Alert severity="error" sx={{ mt: 2 }}>
             {displayError}
           </Alert>
         ) : null}
-
-        <Stack direction="row" spacing={1.5} sx={{ mt: 3, alignItems: "center" }}>
-          <Typography variant="body2" sx={{ color: "text.secondary", mr: "auto" }}>
-            {selectedCount} selected
-          </Typography>
-          <Button
-            type="button"
-            variant="text"
-            color="inherit"
-            size="large"
-            onClick={handleClose}
-            disabled={submitting}
-          >
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            variant="contained"
-            color="primary"
-            size="large"
-            onClick={handleSubmit}
-            disabled={submitting || selectedCount === 0}
-            endIcon={<PersonAdd fontSize="small" />}
-          >
-            {submitting ? "Working..." : `${submitLabel} (${selectedCount})`}
-          </Button>
-        </Stack>
       </DialogContent>
+
+      <DialogActions sx={{ px: 3, pb: 2 }}>
+        <Typography variant="body2" color="text.secondary" sx={{ mr: "auto" }}>
+          {pending.size} selected
+        </Typography>
+        <Button variant="text" color="inherit" onClick={handleClose} disabled={submitting}>
+          Cancel
+        </Button>
+        <Button
+          variant="contained"
+          onClick={handleSubmit}
+          disabled={submitting || pending.size === 0}
+          endIcon={<PersonAdd fontSize="small" />}
+        >
+          {submitting ? "Working..." : `${submitLabel} (${pending.size})`}
+        </Button>
+      </DialogActions>
     </Dialog>
   );
 }
-
-export default observer(AddMembersModal);
