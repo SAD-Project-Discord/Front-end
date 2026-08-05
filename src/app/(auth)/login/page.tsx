@@ -1,95 +1,116 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useState, type ChangeEvent, type FormEvent } from "react";
+import { Alert, Box, Button, Stack } from "@mui/material";
+import { AccountCircle, Email, ArrowForward } from "@mui/icons-material";
 import { useRouter } from "next/navigation";
-import NextLink from "next/link";
-import Box from "@mui/material/Box";
-import Paper from "@mui/material/Paper";
-import Stack from "@mui/material/Stack";
-import TextField from "@mui/material/TextField";
-import Button from "@mui/material/Button";
-import Typography from "@mui/material/Typography";
-import Alert from "@mui/material/Alert";
-import MuiLink from "@mui/material/Link";
-import { authApi } from "@/lib/api/auth";
-import { ApiError } from "@/lib/api/api";
-import { isAuthenticated, setSessionTokens, setCachedUser } from "@/lib/auth";
+import { observer } from "mobx-react-lite";
+import AuthBackground from "@/components/auth/AuthBackground";
+import AuthCard from "@/components/auth/AuthCard";
+import AuthHeader from "@/components/auth/AuthHeader";
+import AuthFooter from "@/components/auth/AuthFooter";
+import IconTextField from "@/components/auth/IconTextField";
+import PasswordField from "@/components/auth/PasswordField";
+import authStore from "@/stores/AuthStore";
 
-export default function LoginPage() {
+interface LoginFormValues {
+  email: string;
+  password: string;
+}
+
+function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [values, setValues] = useState<LoginFormValues>({ email: "", password: "" });
+  const [formError, setFormError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (isAuthenticated()) router.replace("/dm");
-  }, [router]);
+  const handleChange =
+    (field: keyof LoginFormValues) => (event: ChangeEvent<HTMLInputElement>) => {
+      setValues((prev) => ({ ...prev, [field]: event.target.value }));
+      if (formError) {
+        setFormError(null);
+      }
+    };
 
-  async function handleSubmit(event: FormEvent) {
+  const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    setError(null);
-    setLoading(true);
-    try {
-      const res = await authApi.login({ email, password });
-      setSessionTokens(res.data.tokens.access_token, res.data.tokens.refresh_token);
-      setCachedUser({
-        id: res.data.user.id,
-        username: res.data.user.username,
-        name: res.data.user.name,
-        avatar_url: res.data.user.avatar_url,
-      });
-      router.push("/dm");
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Something went wrong. Please try again.");
-    } finally {
-      setLoading(false);
+
+    const email = values.email.trim();
+    const password = values.password.trim();
+
+    if (!email || !password) {
+      setFormError("Email and password are required.");
+      authStore.setError(null);
+      return;
     }
-  }
+
+    setFormError(null);
+    authStore.setError(null);
+
+    const success = await authStore.login(email, password);
+
+    if (success) {
+      router.push("/");
+    }
+  };
 
   return (
-    <Box sx={{ minHeight: "100dvh", display: "flex", alignItems: "center", justifyContent: "center", p: 2 }}>
-      <Paper elevation={0} sx={{ p: 4, width: "100%", maxWidth: 380, borderRadius: 4 }}>
-        <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>
-          Welcome back
-        </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-          Log in to continue to your messages.
-        </Typography>
+    <AuthBackground>
+      <AuthCard>
+        <AuthHeader icon={AccountCircle} title="Welcome Back" subtitle="Log in to your account." />
 
-        <Stack component="form" onSubmit={handleSubmit} spacing={2}>
-          <TextField
-            label="Email"
+        <Box component="form" onSubmit={handleSubmit} noValidate>
+          <IconTextField
+            label="Email Address"
+            icon={Email}
+            placeholder="john@example.com"
             type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            value={values.email}
+            onChange={handleChange("email")}
+            autoComplete="email"
             required
-            fullWidth
-            autoFocus
           />
-          <TextField
+
+          <PasswordField
             label="Password"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            placeholder="••••••••"
+            value={values.password}
+            onChange={handleChange("password")}
+            autoComplete="current-password"
             required
-            fullWidth
           />
 
-          {error ? <Alert severity="error">{error}</Alert> : null}
+          {(formError || authStore.error) ? (
+            <Alert severity="error" sx={{ mt: 2 }}>
+              {formError ?? authStore.error}
+            </Alert>
+          ) : null}
 
-          <Button type="submit" variant="contained" size="large" disabled={loading}>
-            {loading ? "Logging in…" : "Log in"}
-          </Button>
-        </Stack>
+          <Stack sx={{ mt: 1 }}>
+            <Button
+              type="submit"
+              variant="contained"
+              color="primary"
+              size="large"
+              disabled={authStore.isLoading}
+              endIcon={<ArrowForward fontSize="small" />}
+            >
+              {authStore.isLoading ? "Logging in..." : "Log In"}
+            </Button>
+          </Stack>
+        </Box>
 
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 3, textAlign: "center" }}>
-          Don&apos;t have an account?{" "}
-          <MuiLink component={NextLink} href="/register">
-            Register
-          </MuiLink>
-        </Typography>
-      </Paper>
-    </Box>
+        <AuthFooter
+          prompt="Don't have an account?"
+          linkLabel="Create one"
+          href="/register"
+          onClick={() => {
+            setFormError(null);
+            authStore.setError(null);
+          }}
+        />
+      </AuthCard>
+    </AuthBackground>
   );
 }
+
+export default observer(LoginPage);

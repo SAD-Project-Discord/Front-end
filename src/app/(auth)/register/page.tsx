@@ -1,126 +1,208 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useState, type ChangeEvent, type FormEvent } from "react";
+import { Alert, Box, Button, Stack } from "@mui/material";
+import { AccountCircle, AlternateEmail, Email, ArrowForward } from "@mui/icons-material";
 import { useRouter } from "next/navigation";
-import NextLink from "next/link";
-import Box from "@mui/material/Box";
-import Paper from "@mui/material/Paper";
-import Stack from "@mui/material/Stack";
-import TextField from "@mui/material/TextField";
-import Button from "@mui/material/Button";
-import Typography from "@mui/material/Typography";
-import Alert from "@mui/material/Alert";
-import MuiLink from "@mui/material/Link";
-import { authApi } from "@/lib/api/auth";
-import { ApiError } from "@/lib/api/api";
-import { isAuthenticated, setSessionTokens, setCachedUser } from "@/lib/auth";
+import { observer } from "mobx-react-lite";
+import AuthBackground from "@/components/auth/AuthBackground";
+import AuthCard from "@/components/auth/AuthCard";
+import AuthHeader from "@/components/auth/AuthHeader";
+import AuthFooter from "@/components/auth/AuthFooter";
+import IconTextField from "@/components/auth/IconTextField";
+import PasswordField from "@/components/auth/PasswordField";
+import authStore from "@/stores/AuthStore";
 
-export default function RegisterPage() {
+interface RegisterFormValues {
+  fullName: string;
+  username: string;
+  email: string;
+  password: string;
+  confirmPassword: string;
+}
+
+const initialValues: RegisterFormValues = {
+  fullName: "",
+  username: "",
+  email: "",
+  password: "",
+  confirmPassword: "",
+};
+
+function RegisterPage() {
   const router = useRouter();
-  const [name, setName] = useState("");
-  const [username, setUsername] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
-  const [loading, setLoading] = useState(false);
+  const [values, setValues] = useState<RegisterFormValues>(initialValues);
+  const [formError, setFormError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (isAuthenticated()) router.replace("/dm");
-  }, [router]);
-
-  async function handleSubmit(event: FormEvent) {
-    event.preventDefault();
-    setError(null);
-    setFieldErrors({});
-    setLoading(true);
-    try {
-      const res = await authApi.register({ name, username, email, password });
-      setSessionTokens(res.data.tokens.access_token, res.data.tokens.refresh_token);
-      setCachedUser({
-        id: res.data.user.id,
-        username: res.data.user.username,
-        name: res.data.user.name,
-        avatar_url: res.data.user.avatar_url,
-      });
-      router.push("/dm");
-    } catch (err) {
-      if (err instanceof ApiError) {
-        setError(err.message);
-        setFieldErrors(err.details ?? {});
-      } else {
-        setError("Something went wrong. Please try again.");
+  const handleChange =
+    (field: keyof RegisterFormValues) => (event: ChangeEvent<HTMLInputElement>) => {
+      setValues((prev) => ({ ...prev, [field]: event.target.value }));
+      if (formError) {
+        setFormError(null);
       }
-    } finally {
-      setLoading(false);
+    };
+
+  const validateForm = () => {
+    const fullName = values.fullName.trim();
+    const username = values.username.trim();
+    const email = values.email.trim();
+
+    if (!fullName) {
+      return "Full name is required.";
     }
-  }
+
+    if (fullName.length < 2) {
+      return "Full name must be at least 2 characters long.";
+    }
+
+    if (!username) {
+      return "Username is required.";
+    }
+
+    if (username.length < 3) {
+      return "Username must be at least 3 characters long.";
+    }
+
+    if (!email) {
+      return "Email is required.";
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return "Please enter a valid email address.";
+    }
+
+    if (values.password.length < 8) {
+      return "Password must be at least 8 characters long.";
+    }
+
+    if (!values.confirmPassword) {
+      return "Please confirm your password.";
+    }
+
+    if (values.password !== values.confirmPassword) {
+      return "Passwords do not match.";
+    }
+
+    return null;
+  };
+
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+
+    const validationError = validateForm();
+
+    if (validationError) {
+      setFormError(validationError);
+      authStore.setError(null);
+      return;
+    }
+
+    setFormError(null);
+    authStore.setError(null);
+
+    const success = await authStore.register(
+      values.fullName.trim(),
+      values.username.trim(),
+      values.email.trim(),
+      values.password
+    );
+
+    if (success) {
+      router.push("/");
+    }
+  };
 
   return (
-    <Box sx={{ minHeight: "100dvh", display: "flex", alignItems: "center", justifyContent: "center", p: 2 }}>
-      <Paper elevation={0} sx={{ p: 4, width: "100%", maxWidth: 380, borderRadius: 4 }}>
-        <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>
-          Create an account
-        </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-          Join to start messaging your team.
-        </Typography>
+    <AuthBackground>
+      <AuthCard>
+        <AuthHeader
+          icon={AccountCircle}
+          title="Create Account"
+          subtitle="Sign up to join your community."
+        />
 
-        <Stack component="form" onSubmit={handleSubmit} spacing={2}>
-          <TextField
-            label="Name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
+        <Box component="form" onSubmit={handleSubmit} noValidate>
+          <IconTextField
+            label="Full Name"
+            icon={AccountCircle}
+            placeholder="John Doe"
+            value={values.fullName}
+            onChange={handleChange("fullName")}
+            autoComplete="name"
             required
-            fullWidth
-            autoFocus
-            error={Boolean(fieldErrors.name)}
-            helperText={fieldErrors.name?.[0]}
           />
-          <TextField
+
+          <IconTextField
             label="Username"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
+            icon={AlternateEmail}
+            placeholder="johndoe88"
+            value={values.username}
+            onChange={handleChange("username")}
+            autoComplete="username"
             required
-            fullWidth
-            error={Boolean(fieldErrors.username)}
-            helperText={fieldErrors.username?.[0]}
           />
-          <TextField
-            label="Email"
+
+          <IconTextField
+            label="Email Address"
+            icon={Email}
+            placeholder="john@example.com"
             type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            value={values.email}
+            onChange={handleChange("email")}
+            autoComplete="email"
             required
-            fullWidth
-            error={Boolean(fieldErrors.email)}
-            helperText={fieldErrors.email?.[0]}
           />
-          <TextField
+
+          <PasswordField
             label="Password"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            placeholder="••••••••"
+            value={values.password}
+            onChange={handleChange("password")}
+            autoComplete="new-password"
             required
-            fullWidth
-            error={Boolean(fieldErrors.password)}
-            helperText={fieldErrors.password?.[0]}
           />
 
-          {error ? <Alert severity="error">{error}</Alert> : null}
+          <PasswordField
+            label="Confirm Password"
+            placeholder="••••••••"
+            value={values.confirmPassword}
+            onChange={handleChange("confirmPassword")}
+            autoComplete="new-password"
+            required
+          />
 
-          <Button type="submit" variant="contained" size="large" disabled={loading}>
-            {loading ? "Creating account…" : "Create account"}
-          </Button>
-        </Stack>
+          {(formError || authStore.error) ? (
+            <Alert severity="error" sx={{ mt: 2 }}>
+              {formError ?? authStore.error}
+            </Alert>
+          ) : null}
 
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 3, textAlign: "center" }}>
-          Already have an account?{" "}
-          <MuiLink component={NextLink} href="/login">
-            Log in
-          </MuiLink>
-        </Typography>
-      </Paper>
-    </Box>
+          <Stack sx={{ mt: 1 }}>
+            <Button
+              type="submit"
+              variant="contained"
+              color="primary"
+              size="large"
+              disabled={authStore.isLoading}
+              endIcon={<ArrowForward fontSize="small" />}
+            >
+              {authStore.isLoading ? "Creating account..." : "Create Account"}
+            </Button>
+          </Stack>
+        </Box>
+
+        <AuthFooter
+          prompt="Already have an account?"
+          linkLabel="Log In"
+          href="/login"
+          onClick={() => {
+            setFormError(null);
+            authStore.setError(null);
+          }}
+        />
+      </AuthCard>
+    </AuthBackground>
   );
 }
+
+export default observer(RegisterPage);
