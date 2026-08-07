@@ -1,8 +1,15 @@
 import { Avatar, Box, Card, Divider, Stack, Typography } from "@mui/material";
-import type { User } from "@/types/auth";
+
+interface ProfileUser {
+  username: string;
+  name: string;
+  bio: string;
+  avatar_url: string;
+  email?: string;
+}
 
 interface ProfileViewProps {
-  user: User;
+  user: ProfileUser;
 }
 
 export default function ProfileView({ user }: ProfileViewProps) {
@@ -33,7 +40,9 @@ export default function ProfileView({ user }: ProfileViewProps) {
           {user.name}
         </Typography>
         <Typography color="text.secondary">@{user.username}</Typography>
-        <Typography color="text.secondary">{user.email}</Typography>
+        {user.email ? (
+          <Typography color="text.secondary">{user.email}</Typography>
+        ) : null}
       </Stack>
 
       <Divider sx={{ my: 3 }} />
