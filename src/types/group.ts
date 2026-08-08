@@ -11,7 +11,6 @@ export interface Group {
   creator_id: string;
   member_count: number;
   my_role: GroupRole;
-  is_private: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -20,13 +19,11 @@ export interface CreateGroupRequest {
   name: string;
   description?: string;
   member_ids?: string[];
-  is_private: boolean;
 }
 
 export interface UpdateGroupRequest {
   name?: string;
   description?: string;
-  is_private?: boolean;
 }
 
 export interface GroupResponse {

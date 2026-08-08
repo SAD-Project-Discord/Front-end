@@ -11,14 +11,12 @@ import {
   Dialog,
   DialogContent,
   DialogTitle,
-  FormControlLabel,
   IconButton,
   List,
   ListItem,
   ListItemAvatar,
   ListItemText,
   Stack,
-  Switch,
   Typography,
   Tooltip,
 } from "@mui/material";
@@ -53,13 +51,11 @@ interface GroupSettingsModalProps {
 interface GroupFormValues {
   name: string;
   description: string;
-  isPrivate: boolean;
 }
 
 const initialValues: GroupFormValues = {
   name: "",
   description: "",
-  isPrivate: true,
 };
 
 function getInitials(name: string): string {
@@ -109,14 +105,13 @@ function GroupSettingsModal({ open, onClose, groupId, onUpdated, onDeleted }: Gr
       setValues({
         name: group.name ?? "",
         description: group.description ?? "",
-        isPrivate: group.is_private ?? false,
       });
       setFormError(null);
     }
   }, [open, group]);
 
   const handleChange = (field: keyof GroupFormValues) => (event: ChangeEvent<HTMLInputElement>) => {
-    const value = field === "isPrivate" ? event.target.checked : event.target.value;
+    const value = event.target.value;
     setValues((prev) => ({ ...prev, [field]: value }));
     if (formError) {
       setFormError(null);
@@ -143,23 +138,11 @@ function GroupSettingsModal({ open, onClose, groupId, onUpdated, onDeleted }: Gr
       return;
     }
 
-    const payload: UpdateGroupRequest = {};
-    const trimmedName = values.name.trim();
-
-    if (trimmedName !== group.name) {
-      payload.name = trimmedName;
-    }
-    const trimmedDescription = values.description.trim();
-    if (trimmedDescription !== group.description) {
-      payload.description = trimmedDescription || undefined;
-    }
-    if (values.isPrivate !== group.is_private) {
-      payload.is_private = values.isPrivate;
-    }
-
-    if (Object.keys(payload).length === 0) {
-      return;
-    }
+    // Always send all fields: backend expects full payload for PATCH
+    const payload: UpdateGroupRequest = {
+      name: values.name.trim(),
+      description: values.description.trim() || undefined,
+    };
 
     const updated = await groupStore.updateGroup(group.id, payload);
     if (updated) {
@@ -276,27 +259,6 @@ function GroupSettingsModal({ open, onClose, groupId, onUpdated, onDeleted }: Gr
                   disabled={!isAdmin || isWorking}
                 />
 
-                <FormControlLabel
-                  sx={{ mt: 0.5, ml: 0, width: "100%", justifyContent: "space-between" }}
-                  control={
-                    <Switch
-                      checked={values.isPrivate}
-                      onChange={handleChange("isPrivate")}
-                      disabled={!isAdmin || isWorking}
-                    />
-                  }
-                  labelPlacement="start"
-                  label={
-                    <Box>
-                      <Typography variant="body2" sx={{ color: "text.primary", fontWeight: 500 }}>
-                        Private group
-                      </Typography>
-                      <Typography variant="caption" sx={{ color: "text.secondary" }}>
-                        Only invited members can join.
-                      </Typography>
-                    </Box>
-                  }
-                />
 
                 {(formError || groupStore.groupSaveError) ? (
                   <Alert severity="error" sx={{ mt: 2 }}>

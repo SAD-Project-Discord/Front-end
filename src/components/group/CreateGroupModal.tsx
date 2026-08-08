@@ -8,10 +8,8 @@ import {
   Dialog,
   DialogContent,
   DialogTitle,
-  FormControlLabel,
   IconButton,
   Stack,
-  Switch,
   Typography,
 } from "@mui/material";
 import { Groups, Subject, Close, ArrowForward } from "@mui/icons-material";
@@ -29,13 +27,11 @@ interface CreateGroupModalProps {
 interface CreateGroupFormValues {
   name: string;
   description: string;
-  isPrivate: boolean;
 }
 
 const initialValues: CreateGroupFormValues = {
   name: "",
   description: "",
-  isPrivate: true,
 };
 
 function CreateGroupModal({ open, onClose, onCreated }: CreateGroupModalProps) {
@@ -45,9 +41,7 @@ function CreateGroupModal({ open, onClose, onCreated }: CreateGroupModalProps) {
   const handleChange =
     (field: keyof CreateGroupFormValues) =>
     (event: ChangeEvent<HTMLInputElement>) => {
-      const value =
-        field === "isPrivate" ? event.target.checked : event.target.value;
-      setValues((prev) => ({ ...prev, [field]: value }));
+      setValues((prev) => ({ ...prev, [field]: event.target.value }));
       if (formError) {
         setFormError(null);
       }
@@ -94,7 +88,6 @@ function CreateGroupModal({ open, onClose, onCreated }: CreateGroupModalProps) {
       name: values.name.trim(),
       description: description || undefined,
       member_ids: [],
-      is_private: values.isPrivate,
     });
 
     if (group) {
@@ -162,32 +155,7 @@ function CreateGroupModal({ open, onClose, onCreated }: CreateGroupModalProps) {
             minRows={2}
           />
 
-          <FormControlLabel
-            sx={{ mt: 0.5, ml: 0, width: "100%", justifyContent: "space-between" }}
-            control={
-              <Switch
-                checked={values.isPrivate}
-                onChange={handleChange("isPrivate")}
-              />
-            }
-            labelPlacement="start"
-            label={
-              <Box>
-                <Typography variant="body2" sx={{ color: "text.primary", fontWeight: 500 }}>
-                  Private group
-                </Typography>
-                <Typography variant="caption" sx={{ color: "text.secondary" }}>
-                  Only invited members can join.
-                </Typography>
-              </Box>
-            }
-          />
-
-          {(formError || groupStore.error) ? (
-            <Alert severity="error" sx={{ mt: 2 }}>
-              {formError ?? groupStore.error}
-            </Alert>
-          ) : null}
+          {/* Group privacy toggle removed: all groups are always private. */}
 
           <Stack direction="row" spacing={1.5} sx={{ mt: 3 }}>
             <Button
