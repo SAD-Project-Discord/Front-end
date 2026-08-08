@@ -422,7 +422,7 @@ function GroupSettingsModal({ open, onClose, groupId, onUpdated, onDeleted }: Gr
                               />
                               <Box sx={{ display: "flex", alignItems: "center", gap: 8, ml: 2 }}>
                                 <Chip
-                                  label={member.role === "admin" ? "Admin" : "Member"}
+                                  label={member.role === "admin" ? "Admin" : member.role === "owner" ? "Owner" : "Member"}
                                   size="small"
                                   color={member.role === "admin" ? "primary" : "default"}
                                 />
