@@ -11,6 +11,7 @@ export interface Group {
   creator_id: string;
   member_count: number;
   my_role: GroupRole;
+  members?: GroupMember[];
   created_at: string;
   updated_at: string;
 }

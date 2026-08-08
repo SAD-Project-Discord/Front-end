@@ -68,19 +68,19 @@ function GroupSettingsModal({ open, onClose, groupId, onUpdated, onDeleted }: Gr
   const [inviteOpen, setInviteOpen] = useState(false);
 
   const group = groupStore.currentGroup;
+  const members = group?.members ?? [];
   const isAdmin =
     group?.my_role === "admin" ||
     group?.my_role === "owner" ||
     group?.creator_id === authStore.user?.id ||
-    groupStore.members.some((m) => m.user?.id === authStore.user?.id && (m.role === "admin" || m.role === "owner"));
-  const isLoading = groupStore.isGroupLoading || groupStore.membersLoading;
+    members.some((m) => m.user?.id === authStore.user?.id && (m.role === "admin" || m.role === "owner"));
+  const isLoading = groupStore.isGroupLoading;
   const isWorking = isLoading || groupStore.isSavingGroup || groupStore.isDeletingGroup || groupStore.isSubmittingMembers;
-  const hasMembers = groupStore.members.length > 0;
+  const hasMembers = members.length > 0;
 
   useEffect(() => {
     if (open && groupId) {
       groupStore.loadGroup(groupId);
-      groupStore.loadMembers(groupId);
     }
   }, [open, groupId]);
 
@@ -344,14 +344,8 @@ function GroupSettingsModal({ open, onClose, groupId, onUpdated, onDeleted }: Gr
                     Members ({group.member_count})
                   </Typography>
 
-                  {groupStore.membersError ? (
-                    <Alert severity="error" sx={{ mb: 2 }}>
-                      {groupStore.membersError}
-                    </Alert>
-                  ) : null}
-
                   <Box sx={{ border: "1px solid", borderColor: "divider", borderRadius: 2, overflow: "hidden" }}>
-                    {groupStore.membersLoading ? (
+                    {isLoading ? (
                       <Box sx={{ display: "flex", justifyContent: "center", py: 5 }}>
                         <CircularProgress size={28} />
                       </Box>
@@ -363,7 +357,7 @@ function GroupSettingsModal({ open, onClose, groupId, onUpdated, onDeleted }: Gr
                       </Box>
                     ) : (
                       <List disablePadding>
-                        {groupStore.members.map((member, index) => {
+                        {members.map((member, index) => {
                           const user = member.user;
                           const isSelf = user?.id === authStore.user?.id;
                           const canModify = isAdmin && !!user && !isSelf;

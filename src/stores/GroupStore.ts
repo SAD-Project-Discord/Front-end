@@ -38,12 +38,6 @@ class GroupStore {
 
   groupDeleteError: string | null = null;
 
-  members: GroupMember[] = [];
-
-  membersLoading = false;
-
-  membersError: string | null = null;
-
   isSubmittingMembers = false;
 
   membersActionError: string | null = null;
@@ -56,8 +50,32 @@ class GroupStore {
     this.error = message;
   }
 
+  private normalizeMembers(rawMembers: Array<any>, existingMembers?: GroupMember[]): GroupMember[] {
+    return rawMembers.map((member) => {
+      const id = member.id ?? member.user_id ?? `${member.group_id ?? member.groupId}-${member.user_id ?? member.id}`;
+      const existing = existingMembers?.find((existingMember) => existingMember.id === id || existingMember.user.id === String(member.user_id ?? member.id));
+      const user = {
+        id: String(member.user_id ?? member.id ?? existing?.user.id ?? ""),
+        username: member.username ?? member.user?.username ?? existing?.user.username ?? "",
+        email: member.email ?? member.user?.email ?? existing?.user.email ?? "",
+        name: member.name ?? member.user?.name ?? existing?.user.name ?? "",
+        bio: member.bio ?? member.user?.bio ?? existing?.user.bio ?? "",
+        avatar_url: member.avatar_url ?? member.user?.avatar_url ?? existing?.user.avatar_url ?? "",
+        created_at: member.created_at ?? member.user?.created_at ?? existing?.user.created_at ?? "",
+        updated_at: member.updated_at ?? member.user?.updated_at ?? existing?.user.updated_at ?? "",
+      };
+
+      return {
+        id,
+        user,
+        role: member.role === "owner" ? "owner" : member.role === "admin" ? "admin" : "member",
+        joined_at: member.joined_at ?? "",
+      };
+    });
+  }
+
   get memberUserIds(): string[] {
-    return this.members
+    return (this.currentGroup?.members ?? [])
       .map((member) => member.user && typeof member.user.id === "string" ? member.user.id : undefined)
       .filter((id): id is string => typeof id === "string");
   }
@@ -93,28 +111,17 @@ class GroupStore {
 
     try {
       const response = await groupService.getGroup(groupId);
+      const rawGroup = response.data as Group & { members?: Array<any> };
 
       runInAction(() => {
-        this.currentGroup = response.data;
-        // If the group response includes members inline, map them to GroupMember[]
-        if (Array.isArray((response.data as any).members)) {
-          const rawMembers = (response.data as any).members as Array<any>;
-          this.members = rawMembers.map((m) => ({
-            id: m.user_id ?? `${response.data.id}-${m.user_id}`,
-            user: {
-              id: m.user_id,
-              username: m.username ?? "",
-              email: "",
-              name: m.name ?? "",
-              bio: "",
-              avatar_url: m.avatar_url ?? "",
-              created_at: m.created_at ?? "",
-              updated_at: m.updated_at ?? "",
-            },
-            role: m.role === "owner" ? "owner" : m.role === "admin" ? "admin" : "member",
-            joined_at: m.joined_at ?? "",
-          }));
-        }
+        const members = Array.isArray(rawGroup.members)
+          ? this.normalizeMembers(rawGroup.members, this.currentGroup?.members)
+          : undefined;
+
+        this.currentGroup = {
+          ...rawGroup,
+          members,
+        };
       });
     } catch (error: unknown) {
       runInAction(() => {
@@ -134,13 +141,21 @@ class GroupStore {
 
     try {
       const response = await groupService.updateGroup(groupId, payload);
+      const updatedGroup = response.data as Group & { members?: GroupMember[] };
 
       runInAction(() => {
-        this.currentGroup = response.data;
-        this.groups = [response.data, ...this.groups.filter((group) => group.id !== response.data.id)];
+        const mergedMembers = Array.isArray(updatedGroup.members)
+          ? this.normalizeMembers(updatedGroup.members, this.currentGroup?.members)
+          : this.currentGroup?.members;
+
+        this.currentGroup = {
+          ...updatedGroup,
+          members: mergedMembers,
+        };
+        this.groups = [this.currentGroup, ...this.groups.filter((group) => group.id !== updatedGroup.id)];
       });
 
-      return response.data;
+      return this.currentGroup;
     } catch (error: unknown) {
       runInAction(() => {
         this.groupSaveError = getErrorMessage(error, "Could not save group settings.");
@@ -163,7 +178,6 @@ class GroupStore {
 
       runInAction(() => {
         this.currentGroup = null;
-        this.members = [];
         this.groups = this.groups.filter((group) => group.id !== groupId);
       });
 
@@ -177,28 +191,6 @@ class GroupStore {
     } finally {
       runInAction(() => {
         this.isDeletingGroup = false;
-      });
-    }
-  }
-
-  async loadMembers(groupId: string): Promise<void> {
-    this.membersLoading = true;
-    this.membersError = null;
-
-    try {
-      const response = await groupService.listMembers(groupId);
-
-      runInAction(() => {
-        this.members = response.data;
-      });
-    } catch (error: unknown) {
-      runInAction(() => {
-        this.members = [];
-        this.membersError = getErrorMessage(error, "Could not load members.");
-      });
-    } finally {
-      runInAction(() => {
-        this.membersLoading = false;
       });
     }
   }
@@ -243,7 +235,7 @@ class GroupStore {
     );
 
     if (success) {
-      await this.loadMembers(groupId);
+      await this.loadGroup(groupId);
     }
 
     return success;
@@ -255,7 +247,7 @@ class GroupStore {
 
     try {
       await groupService.updateMemberRole(groupId, userId, role);
-      await this.loadMembers(groupId);
+      await this.loadGroup(groupId);
       return true;
     } catch (error: unknown) {
       runInAction(() => {
@@ -275,7 +267,7 @@ class GroupStore {
 
     try {
       await groupService.removeMember(groupId, userId);
-      await this.loadMembers(groupId);
+      await this.loadGroup(groupId);
       return true;
     } catch (error: unknown) {
       runInAction(() => {

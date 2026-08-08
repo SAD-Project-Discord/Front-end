@@ -39,7 +39,7 @@ function GroupsPlaceholderPage() {
 
   const openInvite = () => {
     if (!lastCreated) return;
-    groupStore.loadMembers(lastCreated.id);
+    groupStore.loadGroup(lastCreated.id);
     setInviteOpen(true);
   };
 
