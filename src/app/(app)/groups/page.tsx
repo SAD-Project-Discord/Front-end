@@ -19,6 +19,7 @@ import {
 import { Add, PersonAdd, Public } from "@mui/icons-material";
 import { observer } from "mobx-react-lite";
 import CreateGroupModal from "@/components/group/CreateGroupModal";
+import GroupSettingsModal from "@/components/group/GroupSettingsModal";
 import CreateChannelModal from "@/components/channel/CreateChannelModal";
 import AddMembersModal from "@/components/members/AddMembersModal";
 import groupStore from "@/stores/GroupStore";
@@ -31,6 +32,7 @@ function GroupsPlaceholderPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [createChannelOpen, setCreateChannelOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [action, setAction] = useState<MemberAction>("add");
   const [lastCreated, setLastCreated] = useState<Group | null>(null);
   const [lastCreatedChannel, setLastCreatedChannel] = useState<Channel | null>(null);
@@ -99,15 +101,25 @@ function GroupsPlaceholderPage() {
               <ToggleButton value="invite">Send invite</ToggleButton>
             </ToggleButtonGroup>
 
-            <Button
-              variant="outlined"
-              color="primary"
-              size="large"
-              startIcon={<PersonAdd />}
-              onClick={openInvite}
-            >
-              {action === "add" ? "Add members" : "Invite members"}
-            </Button>
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} sx={{ width: "100%", justifyContent: "center" }}>
+              <Button
+                variant="outlined"
+                color="primary"
+                size="large"
+                startIcon={<PersonAdd />}
+                onClick={openInvite}
+              >
+                {action === "add" ? "Add members" : "Invite members"}
+              </Button>
+              <Button
+                variant="contained"
+                color="secondary"
+                size="large"
+                onClick={() => setSettingsOpen(true)}
+              >
+                View Settings
+              </Button>
+            </Stack>
           </>
         ) : lastCreatedChannel ? (
           <Typography variant="body2" sx={{ color: "text.secondary" }}>
@@ -130,6 +142,14 @@ function GroupsPlaceholderPage() {
         open={createChannelOpen}
         onClose={() => setCreateChannelOpen(false)}
         onCreated={(channel) => setLastCreatedChannel(channel)}
+      />
+
+      <GroupSettingsModal
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        groupId={lastCreated?.id ?? ""}
+        onUpdated={(group) => setLastCreated(group)}
+        onDeleted={() => setLastCreated(null)}
       />
 
       {lastCreated ? (

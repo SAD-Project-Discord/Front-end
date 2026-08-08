@@ -1,6 +1,6 @@
 import type { User } from "@/types/auth";
 
-export type GroupRole = "admin" | "member";
+export type GroupRole = "owner" | "admin" | "member";
 
 export type GroupInviteStatus = "pending" | "accepted" | "rejected";
 
@@ -21,6 +21,12 @@ export interface CreateGroupRequest {
   description?: string;
   member_ids?: string[];
   is_private: boolean;
+}
+
+export interface UpdateGroupRequest {
+  name?: string;
+  description?: string;
+  is_private?: boolean;
 }
 
 export interface GroupResponse {
