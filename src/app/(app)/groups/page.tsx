@@ -99,14 +99,14 @@ function GroupsPage() {
   }, [currentUser]);
 
   const activeGroup = useMemo(
-    () => groupStore.groups.find((g) => g.id === activeGroupId),
+    () => groupStore.myGroups.find((g) => g.id === activeGroupId),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [groupStore.groups, activeGroupId],
+    [groupStore.myGroups, activeGroupId],
   );
 
   const participantsById = useMemo(() => {
     const map: Record<string, User> = {};
-    for (const member of groupStore.members) {
+    for (const member of groupStore.groupMembers) {
       map[member.user_id] = {
         id: member.user_id,
         username: member.username,
@@ -116,12 +116,16 @@ function GroupsPage() {
     }
     return map;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [groupStore.members, avatarByUserId]);
+  }, [groupStore.groupMembers, avatarByUserId]);
 
   // ---- bootstrap: my groups + pending invites ----
   useEffect(() => {
-    groupStore.loadGroups();
-    groupStore.loadMyInvites();
+    // A fresh page load only rehydrates authStore's tokens, not the user
+    // profile (see AuthStore.hydrateUser's doc comment) — without this,
+    // `currentUser` below stays null forever on a direct navigation here.
+    authStore.hydrateUser();
+    groupStore.loadMyGroups();
+    groupStore.loadMyInvitations();
   }, []);
 
   // ---- websocket lifecycle ----
@@ -153,7 +157,7 @@ function GroupsPage() {
       if (!me || !groupId || data.user_id === me) return;
       if (data.room !== `group_${groupId}`) return;
 
-      const member = groupStore.members.find((m) => m.user_id === data.user_id);
+      const member = groupStore.groupMembers.find((m) => m.user_id === data.user_id);
       const name = member?.name ?? data.user_id;
 
       const existingTimer = typingClearTimers.current.get(data.user_id);
@@ -221,7 +225,7 @@ function GroupsPage() {
       setHighlightMessageId(undefined);
       chatWs.subscribeToRoom({ type: "group", target_id: groupId });
       fetchInitialPage(groupId);
-      groupStore.loadMembers(groupId);
+      groupStore.loadGroupMembers(groupId);
     },
     [fetchInitialPage],
   );
@@ -242,7 +246,7 @@ function GroupsPage() {
 
   // ---- lazily resolve avatars for members (not included in the members payload) ----
   useEffect(() => {
-    const toFetch = groupStore.members.filter(
+    const toFetch = groupStore.groupMembers.filter(
       (m) => !avatarFetchStarted.current.has(m.user_id) && avatarByUserId[m.user_id] === undefined,
     );
     if (toFetch.length === 0) return;
@@ -263,7 +267,7 @@ function GroupsPage() {
       });
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [groupStore.members]);
+  }, [groupStore.groupMembers]);
 
   const handleLoadOlder = useCallback(() => {
     if (!activeGroupId || messages.length === 0 || loadingOlder || !hasMoreOlder) return;
@@ -328,7 +332,11 @@ function GroupsPage() {
         })
         .then((res) => {
           const confirmed = apiMessageToMessage(res.data);
-          setMessages((prev) => prev.map((m) => (m.clientId === clientId ? confirmed : m)));
+          // A WS echo of this same send can arrive before this response does
+          // (every member, including the sender, gets pushed message.new) —
+          // drop the optimistic entry and merge-by-id rather than blindly
+          // replacing, so the two don't both end up in the list.
+          setMessages((prev) => mergeMessage(prev.filter((m) => m.clientId !== clientId), confirmed));
         })
         .catch(() => {
           setMessages((prev) => prev.map((m) => (m.clientId === clientId ? { ...m, deliveryState: "failed" } : m)));
@@ -351,7 +359,7 @@ function GroupsPage() {
         })
         .then((res) => {
           const confirmed = apiMessageToMessage(res.data);
-          setMessages((prev) => prev.map((m) => (m.id === message.id ? confirmed : m)));
+          setMessages((prev) => mergeMessage(prev.filter((m) => m.id !== message.id), confirmed));
         })
         .catch(() => {
           setMessages((prev) => prev.map((m) => (m.id === message.id ? { ...m, deliveryState: "failed" } : m)));
@@ -415,11 +423,11 @@ function GroupsPage() {
   }
 
   async function handleRespondInvite(invitationId: string, action: "accept" | "reject") {
-    await groupStore.respondToInvite(invitationId, action);
+    await groupStore.respondToGroupInvitation(invitationId, action);
   }
 
   const isConversationOpen = Boolean(activeGroupId);
-  const pendingInviteCount = groupStore.myInvites.length;
+  const pendingInviteCount = groupStore.myInvitations.length;
 
   if (!currentUser) {
     return (
@@ -470,11 +478,11 @@ function GroupsPage() {
           </Tooltip>
         </Stack>
 
-        {groupStore.isLoading ? (
+        {groupStore.isLoadingGroups ? (
           <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
             <CircularProgress size={22} />
           </Box>
-        ) : groupStore.groups.length === 0 ? (
+        ) : groupStore.myGroups.length === 0 ? (
           <Box sx={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", px: 3, textAlign: "center" }}>
             <Typography variant="body2" color="text.secondary">
               No groups yet — create one with the compose button above.
@@ -482,7 +490,7 @@ function GroupsPage() {
           </Box>
         ) : (
           <List sx={{ flex: 1, overflowY: "auto", py: 0.5 }}>
-            {groupStore.groups.map((group) => (
+            {groupStore.myGroups.map((group) => (
               <ListItemButton
                 key={group.id}
                 selected={group.id === activeGroupId}
@@ -608,7 +616,14 @@ function GroupsPage() {
       <CreateGroupModal
         open={createOpen}
         onClose={() => setCreateOpen(false)}
-        onCreated={(group: Group) => setActiveGroupId(group.id)}
+        onCreated={(group: Group) => {
+          // CreateGroupModal calls the original groupStore.createGroup(),
+          // which appends to groupStore.groups — not the additive
+          // groupStore.myGroups this page renders from. Refetch our own
+          // list so the new group actually shows up in the sidebar.
+          groupStore.loadMyGroups();
+          setActiveGroupId(group.id);
+        }}
       />
 
       <Popover
@@ -621,13 +636,13 @@ function GroupsPage() {
           <Typography variant="subtitle2" sx={{ px: 1, py: 1 }}>
             Pending invitations
           </Typography>
-          {groupStore.myInvites.length === 0 ? (
+          {groupStore.myInvitations.length === 0 ? (
             <Typography variant="body2" color="text.secondary" sx={{ px: 1, pb: 2 }}>
               You&apos;re all caught up.
             </Typography>
           ) : (
             <Stack spacing={1} sx={{ px: 1, pb: 1 }}>
-              {groupStore.myInvites.map((invite) => (
+              {groupStore.myInvitations.map((invite) => (
                 <Box key={invite.id} sx={{ p: 1.5, borderRadius: 2, bgcolor: "action.hover" }}>
                   <Typography variant="body2" sx={{ fontWeight: 600 }}>
                     {invite.group_name}

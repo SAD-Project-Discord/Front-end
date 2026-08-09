@@ -25,12 +25,12 @@ import { Close, PersonAddAlt, PersonRemove } from "@mui/icons-material";
 import { observer } from "mobx-react-lite";
 import groupStore from "@/stores/GroupStore";
 import AddMembersModal from "@/components/members/AddMembersModal";
-import type { Group } from "@/types/group";
+import type { GroupInfo } from "@/types/group";
 
 export interface GroupMembersDialogProps {
   open: boolean;
   onClose: () => void;
-  group: Group;
+  group: GroupInfo;
   currentUserId: string;
   onLeftOrDeleted: () => void;
 }
@@ -40,11 +40,11 @@ function GroupMembersDialog({ open, onClose, group, currentUserId, onLeftOrDelet
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [working, setWorking] = useState(false);
 
-  const isOwner = groupStore.roleFor(group.id, currentUserId) === "owner";
+  const isOwner = groupStore.roleForMember(group.id, currentUserId) === "owner";
 
   async function handleRemove(userId: string) {
     setWorking(true);
-    await groupStore.removeMember(group.id, userId);
+    await groupStore.removeGroupMember(group.id, userId);
     setWorking(false);
   }
 
@@ -68,7 +68,7 @@ function GroupMembersDialog({ open, onClose, group, currentUserId, onLeftOrDelet
               {group.name}
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-              {groupStore.members.length} members
+              {groupStore.groupMembers.length} members
             </Typography>
           </Box>
           <IconButton aria-label="Close" onClick={onClose} edge="end" size="small">
@@ -78,25 +78,25 @@ function GroupMembersDialog({ open, onClose, group, currentUserId, onLeftOrDelet
       </DialogTitle>
 
       <DialogContent>
-        {groupStore.membersError ? (
+        {groupStore.groupMembersError ? (
           <Alert severity="error" sx={{ mb: 1.5 }}>
-            {groupStore.membersError}
+            {groupStore.groupMembersError}
           </Alert>
         ) : null}
-        {groupStore.membersActionError ? (
+        {groupStore.invitationActionError ? (
           <Alert severity="error" sx={{ mb: 1.5 }}>
-            {groupStore.membersActionError}
+            {groupStore.invitationActionError}
           </Alert>
         ) : null}
 
         <Box sx={{ maxHeight: 320, overflowY: "auto", border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
-          {groupStore.membersLoading ? (
+          {groupStore.groupMembersLoading ? (
             <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
               <CircularProgress size={24} />
             </Box>
           ) : (
             <List disablePadding>
-              {groupStore.members.map((member) => (
+              {groupStore.groupMembers.map((member) => (
                 <ListItem
                   key={member.user_id}
                   secondaryAction={
@@ -167,10 +167,10 @@ function GroupMembersDialog({ open, onClose, group, currentUserId, onLeftOrDelet
       <AddMembersModal
         open={inviteOpen}
         onClose={() => setInviteOpen(false)}
-        existingMemberIds={groupStore.memberUserIds}
-        onSubmit={(userIds) => groupStore.inviteMembers(group.id, userIds)}
-        isSubmitting={groupStore.isSubmittingMembers}
-        submitError={groupStore.membersActionError}
+        existingMemberIds={groupStore.myGroupMemberIds}
+        onSubmit={(userIds) => groupStore.sendGroupInvitations(group.id, userIds)}
+        isSubmitting={groupStore.isSubmittingInvitation}
+        submitError={groupStore.invitationActionError}
         title="Invite to group"
         subtitle="Enter a user's ID to send them a group invitation."
         submitLabel="Invite"

@@ -1,4 +1,5 @@
 import api from "@/lib/axios";
+import type { UsersSearchResponse } from "@/types/user";
 import type { User } from "@/types/auth";
 
 interface ApiResponse<T> {
@@ -7,14 +8,15 @@ interface ApiResponse<T> {
 }
 
 class UserService {
-  async getMyProfile(): Promise<User> {
-    const { data } = await api.get<ApiResponse<User>>("/users/me");
-    return data.data;
+  async searchUsers(query: string, limit = 10): Promise<UsersSearchResponse> {
+    const { data } = await api.get<UsersSearchResponse>("/users/search", {
+      params: { q: query, limit },
+    });
+    return data;
   }
 
-  /** There's no user-search endpoint on the backend — this is the only lookup available. */
-  async getUser(userId: string): Promise<User> {
-    const { data } = await api.get<ApiResponse<User>>(`/users/${userId}`);
+  async getMyProfile(): Promise<User> {
+    const { data } = await api.get<ApiResponse<User>>("/users/me");
     return data.data;
   }
 }

@@ -371,7 +371,11 @@ export default function DirectMessagesPage() {
         })
         .then((res) => {
           const confirmed = apiMessageToMessage(res.data);
-          setMessages((prev) => prev.map((m) => (m.clientId === clientId ? confirmed : m)));
+          // A WS echo of this same send can arrive before this response does
+          // (the sender gets pushed their own message.new) — drop the
+          // optimistic entry and merge-by-id rather than blindly replacing,
+          // so the two don't both end up in the list.
+          setMessages((prev) => mergeMessage(prev.filter((m) => m.clientId !== clientId), confirmed));
           const fallbackProfile = { userId: activeContactId, username: activeContactId, name: activeContactId, avatarUrl: "" };
           const known = contactsRef.current.find((c) => c.userId === activeContactId) ?? fallbackProfile;
           const updated = upsertDmContact(currentUser.id, known, {
@@ -401,7 +405,7 @@ export default function DirectMessagesPage() {
         })
         .then((res) => {
           const confirmed = apiMessageToMessage(res.data);
-          setMessages((prev) => prev.map((m) => (m.id === message.id ? confirmed : m)));
+          setMessages((prev) => mergeMessage(prev.filter((m) => m.id !== message.id), confirmed));
         })
         .catch(() => {
           setMessages((prev) => prev.map((m) => (m.id === message.id ? { ...m, deliveryState: "failed" } : m)));

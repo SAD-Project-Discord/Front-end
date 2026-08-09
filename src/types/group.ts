@@ -1,21 +1,8 @@
+import type { User } from "@/types/auth";
+
+export type GroupRole = "admin" | "member";
+
 export type GroupInviteStatus = "pending" | "accepted" | "rejected";
-
-/**
- * Role values confirmed against the live API: "owner" (the creator) and
- * "member" (everyone else, added via an accepted invitation). There's a
- * separate `custom_roles` system for named, granular permission roles
- * (Story 5) — kept loosely typed since its shape isn't nailed down yet.
- */
-export type GroupMemberRole = string;
-
-export interface GroupMember {
-  user_id: string;
-  username: string;
-  name: string;
-  role: GroupMemberRole;
-  custom_roles: string[];
-  joined_at: string;
-}
 
 export interface Group {
   id: string;
@@ -23,13 +10,8 @@ export interface Group {
   description: string;
   creator_id: string;
   member_count: number;
-  /** Present on create/get; assumed present on list for the same reason. */
-  members?: GroupMember[];
-  /**
-   * Sent on create, but the backend doesn't echo it back on any response
-   * observed so far — don't rely on reading this back from the API.
-   */
-  is_private?: boolean;
+  my_role: GroupRole;
+  is_private: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -51,12 +33,91 @@ export interface GroupsResponse {
   data: Group[];
 }
 
+export interface GroupMember {
+  id: string;
+  user: User;
+  role: GroupRole;
+  joined_at: string;
+}
+
 export interface GroupMembersResponse {
   success: boolean;
   data: GroupMember[];
 }
 
+export interface GroupMemberResponse {
+  success: boolean;
+  data: GroupMember;
+}
+
+export interface AddGroupMemberRequest {
+  user_id: string;
+}
+
 export interface GroupInvite {
+  id: string;
+  group_id: string;
+  group_name: string;
+  inviter: User;
+  invitee_id: string;
+  status: GroupInviteStatus;
+  created_at: string;
+}
+
+export interface GroupInviteResponse {
+  success: boolean;
+  data: GroupInvite;
+}
+
+export interface SendGroupInviteRequest {
+  invitee_id: string;
+}
+
+// ---------------------------------------------------------------------------
+// Additive types below, kept separate from the ones above rather than
+// editing them. They mirror the group-related API response shapes as
+// actually returned by the live backend (verified directly against it),
+// which differ in a few ways from the shapes above (e.g. members come back
+// flat as `{ user_id, username, name }` rather than nested under `user`).
+// ---------------------------------------------------------------------------
+
+export interface GroupMemberInfo {
+  user_id: string;
+  username: string;
+  name: string;
+  role: string;
+  custom_roles: string[];
+  joined_at: string;
+}
+
+export interface GroupInfo {
+  id: string;
+  name: string;
+  description: string;
+  creator_id: string;
+  member_count: number;
+  /** Present on create/get/list responses from the live backend. */
+  members?: GroupMemberInfo[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GroupInfoResponse {
+  success: boolean;
+  data: GroupInfo;
+}
+
+export interface GroupInfosResponse {
+  success: boolean;
+  data: GroupInfo[];
+}
+
+export interface GroupMemberInfosResponse {
+  success: boolean;
+  data: GroupMemberInfo[];
+}
+
+export interface GroupInvitationInfo {
   id: string;
   group_id: string;
   group_name: string;
@@ -68,18 +129,14 @@ export interface GroupInvite {
   responded_at: string | null;
 }
 
-export interface GroupInviteResponse {
+export interface GroupInvitationInfoResponse {
   success: boolean;
-  data: GroupInvite;
+  data: GroupInvitationInfo;
 }
 
-export interface GroupInvitesResponse {
+export interface GroupInvitationInfosResponse {
   success: boolean;
-  data: GroupInvite[];
+  data: GroupInvitationInfo[];
 }
 
-export interface SendGroupInviteRequest {
-  invitee_id: string;
-}
-
-export type GroupInviteRespondAction = "accept" | "reject";
+export type GroupInvitationRespondAction = "accept" | "reject";

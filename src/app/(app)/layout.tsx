@@ -2,9 +2,7 @@
 
 import { type ReactNode, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Box from '@mui/material/Box';
 import { isAuthenticated } from '@/lib/auth';
-import NavRail from '@/components/layout/NavRail';
 
 export default function ProtectedLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
@@ -26,10 +24,5 @@ export default function ProtectedLayout({ children }: { children: ReactNode }) {
 
   if (!authorized) return null;
 
-  return (
-    <Box sx={{ display: 'flex', height: '100dvh', overflow: 'hidden' }}>
-      <NavRail />
-      <Box sx={{ flex: 1, minWidth: 0 }}>{children}</Box>
-    </Box>
-  );
+  return <>{children}</>;
 }
