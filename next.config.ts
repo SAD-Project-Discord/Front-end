@@ -39,8 +39,16 @@ const nextConfig: NextConfig = {
         destination: `${BACKEND_ORIGIN}/api/v1/messages/groups/:groupId/search/`,
       },
       {
+        source: "/api/v1/messages/channels/:channelId/search/",
+        destination: `${BACKEND_ORIGIN}/api/v1/messages/channels/:channelId/search/`,
+      },
+      {
         source: "/api/v1/groups/",
         destination: `${BACKEND_ORIGIN}/api/v1/groups/`,
+      },
+      {
+        source: "/api/v1/channels/",
+        destination: `${BACKEND_ORIGIN}/api/v1/channels/`,
       },
       {
         source: "/api/v1/storage/upload/",
