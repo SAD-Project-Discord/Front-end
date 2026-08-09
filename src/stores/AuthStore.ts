@@ -1,6 +1,7 @@
 import { makeAutoObservable, runInAction } from "mobx";
 
 import authService from "@/services/auth.service";
+import userService from "@/services/user.service";
 import type { User } from "@/types/auth";
 
 class AuthStore {
@@ -11,6 +12,7 @@ class AuthStore {
 
   isAuthenticated = false;
   isLoading = false;
+  isHydratingUser = false;
 
   error: string | null = null;
 
@@ -26,6 +28,31 @@ class AuthStore {
 
   setError(message: string | null) {
     this.error = message;
+  }
+
+  /**
+   * Additive helper: only the tokens survive a fresh page load (see the
+   * constructor above) — `user` is only ever set in-memory by persistAuth(),
+   * so a hard refresh/direct navigation on any page that reads
+   * `authStore.user` would otherwise see `null` forever despite a valid
+   * session. Call this once on mount wherever that matters.
+   */
+  async hydrateUser(): Promise<void> {
+    if (this.user || !this.accessToken || this.isHydratingUser) return;
+
+    this.isHydratingUser = true;
+    try {
+      const profile = await userService.getMyProfile();
+      runInAction(() => {
+        this.user = profile;
+      });
+    } catch {
+      // A 401 here is already handled by the axios interceptor's redirect flow.
+    } finally {
+      runInAction(() => {
+        this.isHydratingUser = false;
+      });
+    }
   }
 
   private persistAuth(user: User, accessToken: string, refreshToken: string) {

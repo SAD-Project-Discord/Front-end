@@ -1,7 +1,15 @@
 import { makeAutoObservable, runInAction } from "mobx";
 
 import groupService from "@/services/group.service";
-import type { CreateGroupRequest, Group, GroupMember } from "@/types/group";
+import type {
+  CreateGroupRequest,
+  Group,
+  GroupInfo,
+  GroupInvitationInfo,
+  GroupInvitationRespondAction,
+  GroupMember,
+  GroupMemberInfo,
+} from "@/types/group";
 
 function getErrorMessage(error: unknown, fallback: string): string {
   const responseMessage =
@@ -28,6 +36,35 @@ class GroupStore {
   isSubmittingMembers = false;
 
   membersActionError: string | null = null;
+
+  // -------------------------------------------------------------------
+  // Additive state below, kept separate from the fields above rather than
+  // reusing them (those are keyed to the `Group`/`GroupMember` shapes,
+  // which don't match what the live backend actually returns). See the
+  // matching methods further down.
+  // -------------------------------------------------------------------
+
+  myGroups: GroupInfo[] = [];
+
+  isLoadingGroups = false;
+
+  groupsError: string | null = null;
+
+  groupMembers: GroupMemberInfo[] = [];
+
+  groupMembersLoading = false;
+
+  groupMembersError: string | null = null;
+
+  isSubmittingInvitation = false;
+
+  invitationActionError: string | null = null;
+
+  myInvitations: GroupInvitationInfo[] = [];
+
+  invitationsLoading = false;
+
+  invitationsError: string | null = null;
 
   constructor() {
     makeAutoObservable(this);
@@ -143,6 +180,218 @@ class GroupStore {
       (userId) => groupService.sendInvite(groupId, userId),
       "Could not send some invites."
     );
+  }
+
+  // -------------------------------------------------------------------
+  // Additive methods below, kept separate from the ones above rather than
+  // editing them — they operate on the additive state above and call the
+  // additive groupService methods that hit the endpoints as actually
+  // implemented by the live backend.
+  // -------------------------------------------------------------------
+
+  roleForMember(groupId: string, userId: string | undefined): string | undefined {
+    if (!userId) return undefined;
+    const group = this.myGroups.find((g) => g.id === groupId);
+    return group?.members?.find((m) => m.user_id === userId)?.role;
+  }
+
+  get myGroupMemberIds(): string[] {
+    return this.groupMembers.map((m) => m.user_id);
+  }
+
+  async loadMyGroups(): Promise<void> {
+    this.isLoadingGroups = true;
+    this.groupsError = null;
+
+    try {
+      const response = await groupService.listGroups();
+      runInAction(() => {
+        this.myGroups = response.data;
+      });
+    } catch (error: unknown) {
+      runInAction(() => {
+        this.groupsError = getErrorMessage(error, "Could not load groups.");
+      });
+    } finally {
+      runInAction(() => {
+        this.isLoadingGroups = false;
+      });
+    }
+  }
+
+  async createGroupInfo(payload: CreateGroupRequest): Promise<GroupInfo | null> {
+    this.isLoadingGroups = true;
+    this.groupsError = null;
+
+    try {
+      const response = await groupService.createGroup(payload);
+      const created = response.data as unknown as GroupInfo;
+      runInAction(() => {
+        this.myGroups = [created, ...this.myGroups];
+      });
+      return created;
+    } catch (error: unknown) {
+      runInAction(() => {
+        this.groupsError = getErrorMessage(error, "Could not create group.");
+      });
+      return null;
+    } finally {
+      runInAction(() => {
+        this.isLoadingGroups = false;
+      });
+    }
+  }
+
+  async updateGroupInfo(
+    groupId: string,
+    payload: Partial<Pick<CreateGroupRequest, "name" | "description" | "is_private">>
+  ): Promise<boolean> {
+    try {
+      const response = await groupService.updateGroup(groupId, payload);
+      runInAction(() => {
+        this.myGroups = this.myGroups.map((g) => (g.id === groupId ? response.data : g));
+      });
+      return true;
+    } catch (error: unknown) {
+      runInAction(() => {
+        this.groupsError = getErrorMessage(error, "Could not update group.");
+      });
+      return false;
+    }
+  }
+
+  async deleteGroup(groupId: string): Promise<boolean> {
+    try {
+      await groupService.deleteGroup(groupId);
+      runInAction(() => {
+        this.myGroups = this.myGroups.filter((g) => g.id !== groupId);
+      });
+      return true;
+    } catch (error: unknown) {
+      runInAction(() => {
+        this.groupsError = getErrorMessage(error, "Could not delete group.");
+      });
+      return false;
+    }
+  }
+
+  async leaveGroup(groupId: string): Promise<boolean> {
+    try {
+      await groupService.leaveGroup(groupId);
+      runInAction(() => {
+        this.myGroups = this.myGroups.filter((g) => g.id !== groupId);
+      });
+      return true;
+    } catch (error: unknown) {
+      runInAction(() => {
+        this.groupsError = getErrorMessage(error, "Could not leave group.");
+      });
+      return false;
+    }
+  }
+
+  async loadGroupMembers(groupId: string): Promise<void> {
+    this.groupMembersLoading = true;
+    this.groupMembersError = null;
+
+    try {
+      const response = await groupService.listMembersInfo(groupId);
+      runInAction(() => {
+        this.groupMembers = response.data;
+      });
+    } catch (error: unknown) {
+      runInAction(() => {
+        this.groupMembers = [];
+        this.groupMembersError = getErrorMessage(error, "Could not load members.");
+      });
+    } finally {
+      runInAction(() => {
+        this.groupMembersLoading = false;
+      });
+    }
+  }
+
+  async removeGroupMember(groupId: string, userId: string): Promise<boolean> {
+    try {
+      await groupService.removeMember(groupId, userId);
+      runInAction(() => {
+        this.groupMembers = this.groupMembers.filter((m) => m.user_id !== userId);
+      });
+      return true;
+    } catch (error: unknown) {
+      runInAction(() => {
+        this.groupMembersError = getErrorMessage(error, "Could not remove member.");
+      });
+      return false;
+    }
+  }
+
+  async sendGroupInvitations(groupId: string, userIds: string[]): Promise<boolean> {
+    if (userIds.length === 0) return false;
+
+    this.isSubmittingInvitation = true;
+    this.invitationActionError = null;
+
+    try {
+      const results = await Promise.allSettled(
+        userIds.map((userId) => groupService.sendGroupInvitation(groupId, userId))
+      );
+
+      const rejected = results.find((result) => result.status === "rejected") as
+        | PromiseRejectedResult
+        | undefined;
+
+      if (rejected) {
+        runInAction(() => {
+          this.invitationActionError = getErrorMessage(rejected.reason, "Could not send some invitations.");
+        });
+        return false;
+      }
+
+      return true;
+    } finally {
+      runInAction(() => {
+        this.isSubmittingInvitation = false;
+      });
+    }
+  }
+
+  async loadMyInvitations(): Promise<void> {
+    this.invitationsLoading = true;
+    this.invitationsError = null;
+
+    try {
+      const response = await groupService.listMyInvitations();
+      runInAction(() => {
+        this.myInvitations = response.data.filter((invite) => invite.status === "pending");
+      });
+    } catch (error: unknown) {
+      runInAction(() => {
+        this.invitationsError = getErrorMessage(error, "Could not load invitations.");
+      });
+    } finally {
+      runInAction(() => {
+        this.invitationsLoading = false;
+      });
+    }
+  }
+
+  async respondToGroupInvitation(invitationId: string, action: GroupInvitationRespondAction): Promise<boolean> {
+    try {
+      await groupService.respondToInvitation(invitationId, action);
+      runInAction(() => {
+        this.myInvitations = this.myInvitations.filter((invite) => invite.id !== invitationId);
+      });
+      if (action === "accept") {
+        await this.loadMyGroups();
+      }
+      return true;
+    } catch (error: unknown) {
+      runInAction(() => {
+        this.invitationsError = getErrorMessage(error, "Could not respond to invitation.");
+      });
+      return false;
+    }
   }
 }
 
