@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
@@ -21,11 +22,15 @@ import GroupAddRounded from "@mui/icons-material/GroupAddRounded";
 import NotificationsRounded from "@mui/icons-material/NotificationsRounded";
 import GroupRounded from "@mui/icons-material/GroupRounded";
 import KeyboardDoubleArrowDownRounded from "@mui/icons-material/KeyboardDoubleArrowDownRounded";
+import ScheduleSendRounded from "@mui/icons-material/ScheduleSendRounded";
+import SettingsRounded from "@mui/icons-material/SettingsRounded";
 import { observer } from "mobx-react-lite";
 
 import type { Message, MessageAttachment, User } from "@/lib/types";
 import { messagesApi } from "@/lib/api/messages";
 import type { ApiMessage } from "@/lib/api/messages";
+import { scheduledMessagesApi } from "@/lib/api/scheduledMessages";
+import { ApiError } from "@/lib/api/api";
 import { usersApi } from "@/lib/api/users";
 import { chatWs } from "@/lib/api/chat";
 import { apiMessageToMessage } from "@/lib/chat/mappers";
@@ -61,6 +66,7 @@ function mergeMessage(list: Message[], incoming: Message): Message[] {
 }
 
 function GroupsPage() {
+  const router = useRouter();
   const currentUser = authStore.user;
 
   const [activeGroupId, setActiveGroupId] = useState<string | undefined>(undefined);
@@ -347,6 +353,30 @@ function GroupsPage() {
     [activeGroupId, currentUser],
   );
 
+  const handleScheduleSend = useCallback(
+    (content: string, attachments: MessageAttachment[], scheduledAt: Date) => {
+      if (!activeGroupId) return;
+      if (!content && attachments.length === 0) return;
+
+      scheduledMessagesApi
+        .create({
+          group_id: activeGroupId,
+          content,
+          media_ids: attachments.length > 0 ? attachments.map((a) => a.id) : undefined,
+          scheduled_at: scheduledAt.toISOString(),
+        })
+        .then(() => {
+          setDraft("");
+          setToast({ message: `Scheduled for ${scheduledAt.toLocaleString()}.`, severity: "success" });
+        })
+        .catch((err) => {
+          const message = err instanceof ApiError ? err.message : "Couldn't schedule that message.";
+          setToast({ message, severity: "error" });
+        });
+    },
+    [activeGroupId],
+  );
+
   const handleRetry = useCallback(
     (message: Message) => {
       if (!activeGroupId) return;
@@ -471,6 +501,16 @@ function GroupsPage() {
               </Badge>
             </IconButton>
           </Tooltip>
+          <Tooltip title="Scheduled messages">
+            <IconButton size="small" onClick={() => router.push("/scheduled")} aria-label="Scheduled messages">
+              <ScheduleSendRounded fontSize="small" />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Settings & Privacy">
+            <IconButton size="small" onClick={() => router.push("/settings")} aria-label="Settings & Privacy">
+              <SettingsRounded fontSize="small" />
+            </IconButton>
+          </Tooltip>
           <Tooltip title="New group">
             <IconButton size="small" onClick={() => setCreateOpen(true)} aria-label="New group">
               <GroupAddRounded fontSize="small" />
@@ -569,6 +609,7 @@ function GroupsPage() {
               value={draft}
               onChange={setDraft}
               onSend={handleSend}
+              onSchedule={handleScheduleSend}
               onTyping={handleTypingKeystroke}
               isSending={sending}
               placeholder={`Message #${activeGroup.name}`}

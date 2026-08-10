@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
@@ -19,11 +20,15 @@ import AddRounded from "@mui/icons-material/AddRounded";
 import TagRounded from "@mui/icons-material/TagRounded";
 import GroupRounded from "@mui/icons-material/GroupRounded";
 import KeyboardDoubleArrowDownRounded from "@mui/icons-material/KeyboardDoubleArrowDownRounded";
+import ScheduleSendRounded from "@mui/icons-material/ScheduleSendRounded";
+import SettingsRounded from "@mui/icons-material/SettingsRounded";
 import { observer } from "mobx-react-lite";
 
 import type { Message, MessageAttachment, User } from "@/lib/types";
 import { messagesApi } from "@/lib/api/messages";
 import type { ApiMessage } from "@/lib/api/messages";
+import { scheduledMessagesApi } from "@/lib/api/scheduledMessages";
+import { ApiError } from "@/lib/api/api";
 import { usersApi } from "@/lib/api/users";
 import { chatWs } from "@/lib/api/chat";
 import { apiMessageToMessage } from "@/lib/chat/mappers";
@@ -59,6 +64,7 @@ function mergeMessage(list: Message[], incoming: Message): Message[] {
 }
 
 function ChannelsPage() {
+  const router = useRouter();
   const currentUser = authStore.user;
 
   const [activeChannelId, setActiveChannelId] = useState<string | undefined>(undefined);
@@ -343,6 +349,30 @@ function ChannelsPage() {
     [activeChannelId, currentUser],
   );
 
+  const handleScheduleSend = useCallback(
+    (content: string, attachments: MessageAttachment[], scheduledAt: Date) => {
+      if (!activeChannelId) return;
+      if (!content && attachments.length === 0) return;
+
+      scheduledMessagesApi
+        .create({
+          channel_id: activeChannelId,
+          content,
+          media_ids: attachments.length > 0 ? attachments.map((a) => a.id) : undefined,
+          scheduled_at: scheduledAt.toISOString(),
+        })
+        .then(() => {
+          setDraft("");
+          setToast({ message: `Scheduled for ${scheduledAt.toLocaleString()}.`, severity: "success" });
+        })
+        .catch((err) => {
+          const message = err instanceof ApiError ? err.message : "Couldn't schedule that message.";
+          setToast({ message, severity: "error" });
+        });
+    },
+    [activeChannelId],
+  );
+
   const handleRetry = useCallback(
     (message: Message) => {
       if (!activeChannelId) return;
@@ -455,6 +485,16 @@ function ChannelsPage() {
           <Typography variant="subtitle1" sx={{ fontWeight: 700, flex: 1 }} noWrap>
             Channels
           </Typography>
+          <Tooltip title="Scheduled messages">
+            <IconButton size="small" onClick={() => router.push("/scheduled")} aria-label="Scheduled messages">
+              <ScheduleSendRounded fontSize="small" />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Settings & Privacy">
+            <IconButton size="small" onClick={() => router.push("/settings")} aria-label="Settings & Privacy">
+              <SettingsRounded fontSize="small" />
+            </IconButton>
+          </Tooltip>
           <Tooltip title="New channel">
             <IconButton size="small" onClick={() => setCreateOpen(true)} aria-label="New channel">
               <AddRounded fontSize="small" />
@@ -555,6 +595,7 @@ function ChannelsPage() {
               value={draft}
               onChange={setDraft}
               onSend={handleSend}
+              onSchedule={handleScheduleSend}
               onTyping={handleTypingKeystroke}
               isSending={sending}
               placeholder={`Message #${activeChannel.name}`}

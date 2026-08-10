@@ -9,15 +9,25 @@ import TextField from "@mui/material/TextField";
 import Chip from "@mui/material/Chip";
 import CircularProgress from "@mui/material/CircularProgress";
 import Tooltip from "@mui/material/Tooltip";
+import Popover from "@mui/material/Popover";
+import Button from "@mui/material/Button";
+import Typography from "@mui/material/Typography";
 import AttachFileRoundedIcon from "@mui/icons-material/AttachFileRounded";
 import EmojiEmotionsRoundedIcon from "@mui/icons-material/EmojiEmotionsRounded";
 import StickyNote2RoundedIcon from "@mui/icons-material/StickyNote2Rounded";
 import SendRoundedIcon from "@mui/icons-material/SendRounded";
 import ErrorOutlineRoundedIcon from "@mui/icons-material/ErrorOutlineRounded";
+import ScheduleSendRoundedIcon from "@mui/icons-material/ScheduleSendRounded";
 import { storageApi } from "@/lib/api/storage";
 import type { MessageAttachment } from "@/lib/types";
 import { EmojiPicker } from "./EmojiPicker";
 import { StickerPicker } from "./StickerPicker";
+
+/** Local-time value a `datetime-local` input needs, e.g. "2026-08-10T14:05". */
+function toDatetimeLocalValue(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
 
 interface PendingAttachment {
   localId: string;
@@ -30,6 +40,7 @@ export interface ChatInputProps {
   value: string;
   onChange: (value: string) => void;
   onSend: (content: string, attachments: MessageAttachment[]) => void;
+  onSchedule?: (content: string, attachments: MessageAttachment[], scheduledAt: Date) => void;
   onTyping?: () => void;
   disabled?: boolean;
   isSending?: boolean;
@@ -40,6 +51,7 @@ export function ChatInput({
   value,
   onChange,
   onSend,
+  onSchedule,
   onTyping,
   disabled = false,
   isSending = false,
@@ -49,10 +61,14 @@ export function ChatInput({
   const [pending, setPending] = useState<PendingAttachment[]>([]);
   const [emojiAnchor, setEmojiAnchor] = useState<HTMLElement | null>(null);
   const [stickerAnchor, setStickerAnchor] = useState<HTMLElement | null>(null);
+  const [scheduleAnchor, setScheduleAnchor] = useState<HTMLElement | null>(null);
+  const [scheduleValue, setScheduleValue] = useState("");
+  const [scheduleError, setScheduleError] = useState<string | null>(null);
 
   const isUploading = pending.some((p) => p.status === "uploading");
   const readyAttachments = pending.filter((p) => p.status === "done" && p.attachment).map((p) => p.attachment!);
   const canSend = (value.trim().length > 0 || readyAttachments.length > 0) && !disabled && !isSending && !isUploading;
+  const canSchedule = canSend && !!onSchedule;
 
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     if (event.key === "Enter" && !event.shiftKey) {
@@ -98,6 +114,24 @@ export function ChatInput({
 
   function removePending(localId: string) {
     setPending((prev) => prev.filter((p) => p.localId !== localId));
+  }
+
+  function openSchedulePopover(event: React.MouseEvent<HTMLElement>) {
+    setScheduleError(null);
+    setScheduleValue(toDatetimeLocalValue(new Date(Date.now() + 5 * 60 * 1000)));
+    setScheduleAnchor(event.currentTarget);
+  }
+
+  function handleConfirmSchedule() {
+    if (!onSchedule || !scheduleValue) return;
+    const scheduledAt = new Date(scheduleValue);
+    if (Number.isNaN(scheduledAt.getTime()) || scheduledAt.getTime() <= Date.now()) {
+      setScheduleError("Pick a time in the future.");
+      return;
+    }
+    onSchedule(value.trim(), readyAttachments, scheduledAt);
+    setPending([]);
+    setScheduleAnchor(null);
   }
 
   return (
@@ -176,6 +210,22 @@ export function ChatInput({
           <EmojiEmotionsRoundedIcon fontSize="small" />
         </IconButton>
 
+        {onSchedule ? (
+          <Tooltip title="Schedule send">
+            <span>
+              <IconButton
+                size="small"
+                disabled={!canSchedule}
+                onClick={openSchedulePopover}
+                aria-label="Schedule send"
+                sx={{ mb: 0.5 }}
+              >
+                <ScheduleSendRoundedIcon fontSize="small" />
+              </IconButton>
+            </span>
+          </Tooltip>
+        ) : null}
+
         <IconButton
           onClick={handleSend}
           disabled={!canSend}
@@ -208,6 +258,41 @@ export function ChatInput({
           ])
         }
       />
+
+      <Popover
+        open={Boolean(scheduleAnchor)}
+        anchorEl={scheduleAnchor}
+        onClose={() => setScheduleAnchor(null)}
+        anchorOrigin={{ vertical: "top", horizontal: "center" }}
+        transformOrigin={{ vertical: "bottom", horizontal: "center" }}
+      >
+        <Stack spacing={1.5} sx={{ p: 2, width: 260 }}>
+          <Typography variant="subtitle2">Schedule this message</Typography>
+          <TextField
+            type="datetime-local"
+            size="small"
+            value={scheduleValue}
+            onChange={(e) => {
+              setScheduleValue(e.target.value);
+              setScheduleError(null);
+            }}
+            slotProps={{ htmlInput: { min: toDatetimeLocalValue(new Date()) } }}
+          />
+          {scheduleError ? (
+            <Typography variant="caption" color="error">
+              {scheduleError}
+            </Typography>
+          ) : null}
+          <Stack direction="row" spacing={1} sx={{ justifyContent: "flex-end" }}>
+            <Button size="small" onClick={() => setScheduleAnchor(null)}>
+              Cancel
+            </Button>
+            <Button size="small" variant="contained" onClick={handleConfirmSchedule}>
+              Schedule
+            </Button>
+          </Stack>
+        </Stack>
+      </Popover>
     </Box>
   );
 }

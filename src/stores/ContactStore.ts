@@ -1,10 +1,10 @@
 import { makeAutoObservable, runInAction } from "mobx";
 
 import contactService from "@/services/contact.service";
-import type { Contact, ContactStatus } from "@/types/contact";
+import type { PublicUserProfile } from "@/types/user";
 
 class ContactStore {
-  contacts: Contact[] = [];
+  contacts: PublicUserProfile[] = [];
 
   isLoading = false;
 
@@ -18,12 +18,12 @@ class ContactStore {
     this.error = message;
   }
 
-  async loadContacts(status: ContactStatus = "accepted"): Promise<void> {
+  async loadContacts(query?: string): Promise<void> {
     this.isLoading = true;
     this.setError(null);
 
     try {
-      const response = await contactService.listContacts(status);
+      const response = await contactService.listContacts(query);
 
       runInAction(() => {
         this.contacts = response.data;

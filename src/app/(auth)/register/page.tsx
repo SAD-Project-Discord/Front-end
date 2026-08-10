@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ChangeEvent, type FormEvent } from "react";
+import { useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { Alert, Box, Button, Stack } from "@mui/material";
 import { AccountCircle, AlternateEmail, Email, ArrowForward } from "@mui/icons-material";
 import { useRouter } from "next/navigation";
@@ -33,6 +33,7 @@ function RegisterPage() {
   const router = useRouter();
   const [values, setValues] = useState<RegisterFormValues>(initialValues);
   const [formError, setFormError] = useState<string | null>(null);
+  const usernameFieldRef = useRef<HTMLInputElement>(null);
 
   const handleChange =
     (field: keyof RegisterFormValues) => (event: ChangeEvent<HTMLInputElement>) => {
@@ -109,6 +110,11 @@ function RegisterPage() {
 
     if (success) {
       router.push("/");
+      return;
+    }
+
+    if (authStore.error?.toLowerCase().includes("username")) {
+      usernameFieldRef.current?.focus();
     }
   };
 
@@ -139,6 +145,7 @@ function RegisterPage() {
             value={values.username}
             onChange={handleChange("username")}
             autoComplete="username"
+            inputRef={usernameFieldRef}
             required
           />
 

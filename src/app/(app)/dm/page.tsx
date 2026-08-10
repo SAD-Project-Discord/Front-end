@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
@@ -16,12 +17,16 @@ import SearchRounded from "@mui/icons-material/SearchRounded";
 import AddCommentRounded from "@mui/icons-material/AddCommentRounded";
 import TravelExploreRounded from "@mui/icons-material/TravelExploreRounded";
 import KeyboardDoubleArrowDownRounded from "@mui/icons-material/KeyboardDoubleArrowDownRounded";
+import ScheduleSendRounded from "@mui/icons-material/ScheduleSendRounded";
+import SettingsRounded from "@mui/icons-material/SettingsRounded";
 
 import type { Message, MessageAttachment, User } from "@/lib/types";
 import { getCachedUser, setCachedUser } from "@/lib/auth";
 import { usersApi } from "@/lib/api/users";
 import { messagesApi } from "@/lib/api/messages";
 import type { ApiMessage } from "@/lib/api/messages";
+import { scheduledMessagesApi } from "@/lib/api/scheduledMessages";
+import { ApiError } from "@/lib/api/api";
 import { chatWs } from "@/lib/api/chat";
 import { loadDmContacts, markDmContactRead, upsertDmContact, type DmContact } from "@/lib/chat/dmContacts";
 import { apiMessageToMessage } from "@/lib/chat/mappers";
@@ -70,6 +75,8 @@ function sortByRecentActivity(contacts: DmContact[]): DmContact[] {
 }
 
 export default function DirectMessagesPage() {
+  const router = useRouter();
+
   // Seeded synchronously from localStorage rather than via an effect: this
   // page is only ever mounted client-side (the protected layout withholds
   // rendering it until after the auth check settles), so there's no SSR
@@ -393,6 +400,30 @@ export default function DirectMessagesPage() {
     [activeContactId, currentUser],
   );
 
+  const handleScheduleSend = useCallback(
+    (content: string, attachments: MessageAttachment[], scheduledAt: Date) => {
+      if (!activeContactId) return;
+      if (!content && attachments.length === 0) return;
+
+      scheduledMessagesApi
+        .create({
+          receiver_id: activeContactId,
+          content,
+          media_ids: attachments.length > 0 ? attachments.map((a) => a.id) : undefined,
+          scheduled_at: scheduledAt.toISOString(),
+        })
+        .then(() => {
+          setDraft("");
+          setToast({ message: `Scheduled for ${scheduledAt.toLocaleString()}.`, severity: "success" });
+        })
+        .catch((err) => {
+          const message = err instanceof ApiError ? err.message : "Couldn't schedule that message.";
+          setToast({ message, severity: "error" });
+        });
+    },
+    [activeContactId],
+  );
+
   const handleRetry = useCallback(
     (message: Message) => {
       if (!activeContactId) return;
@@ -550,6 +581,16 @@ export default function DirectMessagesPage() {
               <TravelExploreRounded fontSize="small" />
             </IconButton>
           </Tooltip>
+          <Tooltip title="Scheduled messages">
+            <IconButton size="small" onClick={() => router.push("/scheduled")}>
+              <ScheduleSendRounded fontSize="small" />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Settings & Privacy">
+            <IconButton size="small" onClick={() => router.push("/settings")}>
+              <SettingsRounded fontSize="small" />
+            </IconButton>
+          </Tooltip>
           <Tooltip title="New direct message">
             <IconButton size="small" onClick={() => setNewDmOpen(true)}>
               <AddCommentRounded fontSize="small" />
@@ -640,6 +681,7 @@ export default function DirectMessagesPage() {
               value={draft}
               onChange={setDraft}
               onSend={handleSend}
+              onSchedule={handleScheduleSend}
               onTyping={handleTypingKeystroke}
               isSending={sending}
               placeholder={`Message ${activeUser.displayName}`}
