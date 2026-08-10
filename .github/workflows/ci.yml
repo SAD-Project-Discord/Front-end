@@ -3,16 +3,28 @@ on:
   pull_request:
   push:
     branches: [main]
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
-      - run: npm ci
-      - run: npx tsc --noEmit
-      - run: npm run lint
-      - run: npm run build
+
+      # Added --prefer-offline to reduce network timeouts during installation
+      - name: Install dependencies
+        run: npm ci --prefer-offline
+
+      # Explicitly invoke tsc from local node_modules instead of global npx lookup
+      - name: Type check
+        run: npx --no-install tsc --noEmit
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
