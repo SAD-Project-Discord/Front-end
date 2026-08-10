@@ -3,16 +3,25 @@ on:
   pull_request:
   push:
     branches: [main]
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: npm
-      - run: npm ci
-      - run: npx tsc --noEmit
-      - run: npm run lint
-      - run: npm run build
+          node-version: 22 # Pin to Node 22 LTS to bypass Node 24 npm hanging bugs
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund --maxsockets=1
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
