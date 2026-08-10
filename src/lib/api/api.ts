@@ -79,7 +79,13 @@ async function parseResponse<T>(response: Response): Promise<T> {
     );
   }
   if (response.status === 204) return {} as T;
-  return response.json();
+
+  // Some endpoints (e.g. POST /messages/scheduled/) return a 2xx with no
+  // body at all — response.json() throws on an empty string, so check first
+  // rather than assuming every successful response is valid JSON.
+  const text = await response.text();
+  if (!text) return {} as T;
+  return JSON.parse(text);
 }
 
 function buildHeaders(init: RequestInit, token: string | null): Headers {

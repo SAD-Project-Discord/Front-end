@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Dialog from "@mui/material/Dialog";
 import DialogTitle from "@mui/material/DialogTitle";
 import DialogContent from "@mui/material/DialogContent";
@@ -12,8 +12,13 @@ import Avatar from "@mui/material/Avatar";
 import Typography from "@mui/material/Typography";
 import Alert from "@mui/material/Alert";
 import CircularProgress from "@mui/material/CircularProgress";
-import { usersApi } from "@/lib/api/users";
-import { ApiError } from "@/lib/api/api";
+import Box from "@mui/material/Box";
+import List from "@mui/material/List";
+import ListItemButton from "@mui/material/ListItemButton";
+import ListItemAvatar from "@mui/material/ListItemAvatar";
+import ListItemText from "@mui/material/ListItemText";
+import { observer } from "mobx-react-lite";
+import userStore from "@/stores/UserStore";
 
 export interface ResolvedUser {
   id: string;
@@ -29,44 +34,35 @@ export interface NewDirectMessageDialogProps {
   currentUserId: string;
 }
 
-export function NewDirectMessageDialog({ open, onClose, onStart, currentUserId }: NewDirectMessageDialogProps) {
-  const [userId, setUserId] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+const SEARCH_DEBOUNCE_MS = 300;
+
+function NewDirectMessageDialogImpl({ open, onClose, onStart, currentUserId }: NewDirectMessageDialogProps) {
+  const [query, setQuery] = useState("");
   const [found, setFound] = useState<ResolvedUser | null>(null);
 
   function reset() {
-    setUserId("");
-    setLoading(false);
-    setError(null);
+    setQuery("");
     setFound(null);
+    userStore.clearSearch();
   }
 
-  async function handleLookup() {
-    const trimmed = userId.trim();
-    if (!trimmed) return;
+  useEffect(() => {
+    if (!open) return;
+    userStore.clearSearch();
+  }, [open]);
 
-    if (trimmed === currentUserId) {
-      setError("That's your own user id.");
-      return;
-    }
+  useEffect(() => {
+    const handle = setTimeout(() => {
+      userStore.searchUsers(query);
+    }, SEARCH_DEBOUNCE_MS);
 
-    setLoading(true);
-    setError(null);
-    setFound(null);
-    try {
-      const res = await usersApi.getUser(trimmed);
-      setFound({
-        id: res.data.id,
-        username: res.data.username,
-        name: res.data.name,
-        avatarUrl: res.data.avatar_url,
-      });
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Couldn't find that user.");
-    } finally {
-      setLoading(false);
-    }
+    return () => clearTimeout(handle);
+  }, [query]);
+
+  const results = userStore.searchResults.filter((u) => u.id !== currentUserId);
+
+  function selectUser(user: (typeof results)[number]) {
+    setFound({ id: user.id, username: user.username, name: user.name, avatarUrl: user.avatar_url });
   }
 
   return (
@@ -82,38 +78,70 @@ export function NewDirectMessageDialog({ open, onClose, onStart, currentUserId }
       <DialogTitle>New direct message</DialogTitle>
       <DialogContent>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Enter the user ID of the person you want to message (ask them for it from their profile).
+          Search by name, username, or email.
         </Typography>
-        <Stack direction="row" spacing={1}>
-          <TextField
-            autoFocus
-            fullWidth
-            size="small"
-            placeholder="usr_xxxxxxxxxxxx"
-            value={userId}
-            onChange={(e) => setUserId(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleLookup()}
-          />
-          <Button variant="outlined" onClick={handleLookup} disabled={loading || !userId.trim()}>
-            {loading ? <CircularProgress size={18} /> : "Look up"}
-          </Button>
-        </Stack>
+        <TextField
+          autoFocus
+          fullWidth
+          size="small"
+          placeholder="Search people"
+          value={query}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setFound(null);
+          }}
+        />
 
-        {error ? (
+        {userStore.error ? (
           <Alert severity="error" sx={{ mt: 2 }}>
-            {error}
+            {userStore.error}
           </Alert>
         ) : null}
 
+        {query.trim() && !found ? (
+          <Box
+            sx={{
+              mt: 2,
+              maxHeight: 260,
+              overflowY: "auto",
+              border: "1px solid",
+              borderColor: "divider",
+              borderRadius: 2,
+            }}
+          >
+            {userStore.isSearching ? (
+              <Box sx={{ display: "flex", justifyContent: "center", py: 3 }}>
+                <CircularProgress size={22} />
+              </Box>
+            ) : results.length === 0 ? (
+              <Typography variant="body2" color="text.secondary" sx={{ textAlign: "center", py: 3, px: 2 }}>
+                No users found.
+              </Typography>
+            ) : (
+              <List disablePadding>
+                {results.map((user) => (
+                  <ListItemButton key={user.id} dense onClick={() => selectUser(user)}>
+                    <ListItemAvatar>
+                      <Avatar src={user.avatar_url || undefined}>{user.name.charAt(0).toUpperCase()}</Avatar>
+                    </ListItemAvatar>
+                    <ListItemText primary={user.name} secondary={`@${user.username}`} />
+                  </ListItemButton>
+                ))}
+              </List>
+            )}
+          </Box>
+        ) : null}
+
         {found ? (
-          <Stack direction="row" spacing={1.5} sx={{ alignItems: "center", mt: 2, p: 1.5, borderRadius: 2, bgcolor: "action.hover" }}>
-            <Avatar
-              src={found.avatarUrl || undefined}
-              slotProps={{ img: { loading: "lazy", decoding: "async" } }}
-            >
+          <Stack
+            direction="row"
+            spacing={1.5}
+            sx={{ alignItems: "center", mt: 2, p: 1.5, borderRadius: 2, bgcolor: "action.hover" }}
+          >
+            <Avatar src={found.avatarUrl || undefined} slotProps={{ img: { loading: "lazy", decoding: "async" } }}>
               {found.name.charAt(0).toUpperCase()}
             </Avatar>
-            <Stack sx={{ minWidth: 0 }}>
+            <Stack sx={{ minWidth: 0, flex: 1 }}>
               <Typography variant="body2" noWrap sx={{ fontWeight: 600 }}>
                 {found.name}
               </Typography>
@@ -121,6 +149,9 @@ export function NewDirectMessageDialog({ open, onClose, onStart, currentUserId }
                 @{found.username}
               </Typography>
             </Stack>
+            <Button size="small" onClick={() => setFound(null)}>
+              Change
+            </Button>
           </Stack>
         ) : null}
       </DialogContent>
@@ -148,3 +179,5 @@ export function NewDirectMessageDialog({ open, onClose, onStart, currentUserId }
     </Dialog>
   );
 }
+
+export const NewDirectMessageDialog = observer(NewDirectMessageDialogImpl);

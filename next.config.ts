@@ -27,6 +27,14 @@ const nextConfig: NextConfig = {
         destination: `${BACKEND_ORIGIN}/api/v1/messages/`,
       },
       {
+        source: "/api/v1/messages/scheduled/",
+        destination: `${BACKEND_ORIGIN}/api/v1/messages/scheduled/`,
+      },
+      {
+        source: "/api/v1/messages/scheduled/:scheduledId/",
+        destination: `${BACKEND_ORIGIN}/api/v1/messages/scheduled/:scheduledId/`,
+      },
+      {
         source: "/api/v1/messages/search/global/",
         destination: `${BACKEND_ORIGIN}/api/v1/messages/search/global/`,
       },
