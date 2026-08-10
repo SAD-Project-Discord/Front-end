@@ -91,10 +91,16 @@ export const messagesApi = {
   },
 
   /**
-   * Get channel message history
+   * Get channel message history with cursor pagination, optionally scoped to a topic.
    */
-  getChannelMessages: (channelId: string, limit: number = 50, topicId?: string): Promise<MessagesResponse> => {
+  getChannelMessages: (
+    channelId: string,
+    limit: number = 50,
+    before?: string,
+    topicId?: string,
+  ): Promise<MessagesResponse> => {
     let query = `?limit=${limit}`;
+    if (before) query += `&before=${before}`;
     if (topicId) query += `&topic_id=${topicId}`;
     return fetchApi<MessagesResponse>(`/messages/channels/${channelId}${query}`);
   },
@@ -143,6 +149,15 @@ export const messagesApi = {
   searchGroupMessages: (groupId: string, query: string, limit: number = 20): Promise<ScopedSearchResponse> => {
     return fetchApi<ScopedSearchResponse>(
       `/messages/groups/${groupId}/search/?q=${encodeURIComponent(query)}&limit=${limit}`,
+    );
+  },
+
+  /**
+   * Search message content/captions within a single channel.
+   */
+  searchChannelMessages: (channelId: string, query: string, limit: number = 20): Promise<ScopedSearchResponse> => {
+    return fetchApi<ScopedSearchResponse>(
+      `/messages/channels/${channelId}/search/?q=${encodeURIComponent(query)}&limit=${limit}`,
     );
   },
 
