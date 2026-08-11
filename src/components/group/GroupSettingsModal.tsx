@@ -66,6 +66,8 @@ function GroupSettingsModal({ open, onClose, groupId, onUpdated, onDeleted }: Gr
   const [values, setValues] = useState<GroupFormValues>(initialValues);
   const [formError, setFormError] = useState<string | null>(null);
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const group = groupStore.currentGroup;
   const members = group?.members ?? [];
@@ -167,11 +169,13 @@ function GroupSettingsModal({ open, onClose, groupId, onUpdated, onDeleted }: Gr
 
   const handleDeleteGroup = async () => {
     if (!group) return;
-    const confirmed = window.confirm("Delete this group? This cannot be undone.");
-    if (!confirmed) return;
 
+    setIsDeleting(true);
     const deleted = await groupStore.deleteGroup(group.id);
+    setIsDeleting(false);
+
     if (deleted) {
+      setDeleteConfirmOpen(false);
       onDeleted?.();
       onClose();
     }
@@ -306,7 +310,7 @@ function GroupSettingsModal({ open, onClose, groupId, onUpdated, onDeleted }: Gr
                       color="error"
                       fullWidth
                       size="large"
-                      onClick={handleDeleteGroup}
+                      onClick={() => setDeleteConfirmOpen(true)}
                       disabled={isWorking}
                     >
                       {groupStore.isDeletingGroup ? "Deleting..." : "Delete Group"}
@@ -407,6 +411,28 @@ function GroupSettingsModal({ open, onClose, groupId, onUpdated, onDeleted }: Gr
           </Box>
         ) : null}
       </DialogContent>
+
+      <Dialog
+        open={deleteConfirmOpen}
+        onClose={() => !isDeleting && setDeleteConfirmOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Delete group?</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" sx={{ color: "text.secondary" }}>
+            Delete this group? This cannot be undone.
+          </Typography>
+        </DialogContent>
+        <Stack direction="row" spacing={1.5} sx={{ px: 3, pb: 2, justifyContent: "flex-end" }}>
+          <Button onClick={() => setDeleteConfirmOpen(false)} disabled={isDeleting}>
+            Cancel
+          </Button>
+          <Button onClick={handleDeleteGroup} color="error" variant="contained" disabled={isDeleting}>
+            {isDeleting ? "Deleting..." : "Delete group"}
+          </Button>
+        </Stack>
+      </Dialog>
 
       <AddMembersModal
         open={inviteOpen}
