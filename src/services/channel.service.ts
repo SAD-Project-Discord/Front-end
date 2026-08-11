@@ -1,12 +1,21 @@
 import api from "@/lib/axios";
 
 import type {
+  ChannelAccessRoleResponse,
+  ChannelAccessRolesResponse,
   ChannelMemberResponse,
   ChannelMembersResponse,
   ChannelResponse,
+  ChannelTopicResponse,
+  ChannelTopicsResponse,
   ChannelsResponse,
+  CreateAccessRoleRequest,
   CreateChannelRequest,
+  CreateTopicRequest,
+  UpdateAccessRoleRequest,
+  UpdateChannelMemberRoleRequest,
   UpdateChannelRequest,
+  UpdateTopicRequest,
 } from "@/types/channel";
 import type { InviteLinkResponse } from "@/types/invite";
 
@@ -64,6 +73,92 @@ class ChannelService {
   async createInviteLink(channelId: string): Promise<InviteLinkResponse> {
     const { data } = await api.post<InviteLinkResponse>(`/channels/${channelId}/invite-link`, {});
     return data;
+  }
+
+  /** Owner-only: promote/demote a non-owner member between admin and member. */
+  async updateMemberRole(
+    channelId: string,
+    userId: string,
+    payload: UpdateChannelMemberRoleRequest,
+  ): Promise<ChannelMemberResponse> {
+    const { data } = await api.patch<ChannelMemberResponse>(
+      `/channels/${channelId}/members/${userId}`,
+      payload,
+    );
+    return data;
+  }
+
+  async listRoles(channelId: string): Promise<ChannelAccessRolesResponse> {
+    const { data } = await api.get<ChannelAccessRolesResponse>(`/channels/${channelId}/roles`);
+    return data;
+  }
+
+  /** Requires MANAGE_ROLES permission. */
+  async createRole(
+    channelId: string,
+    payload: CreateAccessRoleRequest,
+  ): Promise<ChannelAccessRoleResponse> {
+    const { data } = await api.post<ChannelAccessRoleResponse>(`/channels/${channelId}/roles`, payload);
+    return data;
+  }
+
+  async updateRole(
+    channelId: string,
+    roleId: string,
+    payload: UpdateAccessRoleRequest,
+  ): Promise<ChannelAccessRoleResponse> {
+    const { data } = await api.patch<ChannelAccessRoleResponse>(
+      `/channels/${channelId}/roles/${roleId}`,
+      payload,
+    );
+    return data;
+  }
+
+  async deleteRole(channelId: string, roleId: string): Promise<void> {
+    await api.delete(`/channels/${channelId}/roles/${roleId}`);
+  }
+
+  /** Assigns a custom access role to a member. */
+  async assignRole(channelId: string, userId: string, roleId: string): Promise<ChannelMemberResponse> {
+    const { data } = await api.post<ChannelMemberResponse>(
+      `/channels/${channelId}/members/${userId}/roles`,
+      { role_id: roleId },
+    );
+    return data;
+  }
+
+  /** Removes a previously assigned custom access role from a member. */
+  async unassignRole(channelId: string, userId: string, roleId: string): Promise<ChannelMemberResponse> {
+    const { data } = await api.delete<ChannelMemberResponse>(
+      `/channels/${channelId}/members/${userId}/roles/${roleId}`,
+    );
+    return data;
+  }
+
+  async listTopics(channelId: string): Promise<ChannelTopicsResponse> {
+    const { data } = await api.get<ChannelTopicsResponse>(`/channels/${channelId}/topics`);
+    return data;
+  }
+
+  async createTopic(channelId: string, payload: CreateTopicRequest): Promise<ChannelTopicResponse> {
+    const { data } = await api.post<ChannelTopicResponse>(`/channels/${channelId}/topics`, payload);
+    return data;
+  }
+
+  async updateTopic(
+    channelId: string,
+    topicId: string,
+    payload: UpdateTopicRequest,
+  ): Promise<ChannelTopicResponse> {
+    const { data } = await api.patch<ChannelTopicResponse>(
+      `/channels/${channelId}/topics/${topicId}`,
+      payload,
+    );
+    return data;
+  }
+
+  async deleteTopic(channelId: string, topicId: string): Promise<void> {
+    await api.delete(`/channels/${channelId}/topics/${topicId}`);
   }
 }
 
