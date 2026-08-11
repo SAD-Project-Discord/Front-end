@@ -221,32 +221,6 @@ class GroupStore {
     }
   }
 
-  async deleteGroup(groupId: string): Promise<boolean> {
-    this.isDeletingGroup = true;
-    this.groupDeleteError = null;
-
-    try {
-      await groupService.deleteGroup(groupId);
-
-      runInAction(() => {
-        this.currentGroup = null;
-        this.groups = this.groups.filter((group) => group.id !== groupId);
-      });
-
-      return true;
-    } catch (error: unknown) {
-      runInAction(() => {
-        this.groupDeleteError = getErrorMessage(error, "Could not delete group.");
-      });
-
-      return false;
-    } finally {
-      runInAction(() => {
-        this.isDeletingGroup = false;
-      });
-    }
-  }
-
   private async runMemberAction(
     userIds: string[],
     action: (userId: string) => Promise<unknown>,
@@ -304,26 +278,6 @@ class GroupStore {
     } catch (error: unknown) {
       runInAction(() => {
         this.membersActionError = getErrorMessage(error, "Could not update member role.");
-      });
-      return false;
-    } finally {
-      runInAction(() => {
-        this.isSubmittingMembers = false;
-      });
-    }
-  }
-
-  async removeGroupMember(groupId: string, userId: string): Promise<boolean> {
-    this.isSubmittingMembers = true;
-    this.membersActionError = null;
-
-    try {
-      await groupService.removeMember(groupId, userId);
-      await this.loadGroup(groupId);
-      return true;
-    } catch (error: unknown) {
-      runInAction(() => {
-        this.membersActionError = getErrorMessage(error, "Could not remove group member.");
       });
       return false;
     } finally {
@@ -403,7 +357,7 @@ class GroupStore {
 
   async updateGroupInfo(
     groupId: string,
-    payload: Partial<Pick<CreateGroupRequest, "name" | "description" | "is_private">>
+    payload: UpdateGroupRequest
   ): Promise<boolean> {
     try {
       const response = await groupService.updateGroup(groupId, payload);

@@ -25,6 +25,7 @@ export interface CreateGroupRequest {
 export interface UpdateGroupRequest {
   name?: string;
   description?: string;
+  is_private?: boolean;
 }
 
 export interface GroupResponse {

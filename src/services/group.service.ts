@@ -23,22 +23,6 @@ class GroupService {
     return data;
   }
 
-  async getGroup(groupId: string): Promise<GroupResponse> {
-    const { data } = await api.get<GroupResponse>(`/groups/${groupId}`);
-
-    return data;
-  }
-
-  async updateGroup(groupId: string, payload: UpdateGroupRequest): Promise<GroupResponse> {
-    const { data } = await api.patch<GroupResponse>(`/groups/${groupId}`, payload);
-
-    return data;
-  }
-
-  async deleteGroup(groupId: string): Promise<void> {
-    await api.delete(`/groups/${groupId}`);
-  }
-
   async listMembers(groupId: string): Promise<GroupMembersResponse> {
     const { data } = await api.get<GroupMembersResponse>(`/groups/${groupId}/members`);
 
@@ -59,10 +43,6 @@ class GroupService {
     });
 
     return data;
-  }
-
-  async removeMember(groupId: string, userId: string): Promise<void> {
-    await api.delete(`/groups/${groupId}/members/${userId}`);
   }
 
   async sendInvite(groupId: string, inviteeId: string): Promise<GroupInviteResponse> {
@@ -92,7 +72,7 @@ class GroupService {
 
   async updateGroup(
     groupId: string,
-    payload: Partial<Pick<CreateGroupRequest, "name" | "description" | "is_private">>
+    payload: UpdateGroupRequest
   ): Promise<GroupInfoResponse> {
     const { data } = await api.patch<GroupInfoResponse>(`/groups/${groupId}`, payload);
     return data;
