@@ -595,13 +595,22 @@ function DirectMessagesPageInner() {
         }}
       >
         <Stack direction="row" spacing={1} sx={{ alignItems: "center", px: 2, pt: 2, pb: 1 }}>
-          <Avatar
-            src={currentUser.avatarUrl || undefined}
-            slotProps={{ img: { loading: "lazy", decoding: "async" } }}
-            sx={{ width: 32, height: 32, fontSize: 13 }}
-          >
-            {currentUser.displayName.charAt(0).toUpperCase()}
-          </Avatar>
+          <Tooltip title="Your profile">
+            <IconButton
+              size="small"
+              onClick={() => router.push("/profile")}
+              aria-label="Open your profile"
+              sx={{ p: 0 }}
+            >
+              <Avatar
+                src={currentUser.avatarUrl || undefined}
+                slotProps={{ img: { loading: "lazy", decoding: "async" } }}
+                sx={{ width: 32, height: 32, fontSize: 13 }}
+              >
+                {currentUser.displayName.charAt(0).toUpperCase()}
+              </Avatar>
+            </IconButton>
+          </Tooltip>
           <Typography variant="subtitle1" sx={{ fontWeight: 700, flex: 1 }} noWrap>
             Direct Messages
           </Typography>

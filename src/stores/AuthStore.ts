@@ -2,6 +2,7 @@ import { makeAutoObservable, runInAction } from "mobx";
 
 import authService from "@/services/auth.service";
 import userService from "@/services/user.service";
+import { setCachedUser } from "@/lib/auth";
 import type { User } from "@/types/auth";
 
 class AuthStore {
@@ -28,6 +29,18 @@ class AuthStore {
 
   setError(message: string | null) {
     this.error = message;
+  }
+
+  setUserProfile(user: User) {
+    runInAction(() => {
+      this.user = user;
+      setCachedUser({
+        id: user.id,
+        username: user.username,
+        name: user.name,
+        avatar_url: user.avatar_url,
+      });
+    });
   }
 
   /**
@@ -65,6 +78,12 @@ class AuthStore {
 
       localStorage.setItem("access_token", accessToken);
       localStorage.setItem("refresh_token", refreshToken);
+      setCachedUser({
+        id: user.id,
+        username: user.username,
+        name: user.name,
+        avatar_url: user.avatar_url,
+      });
     });
   }
 
