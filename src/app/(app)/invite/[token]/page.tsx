@@ -7,11 +7,6 @@ import { isAxiosError } from "axios";
 import inviteService from "@/services/invite.service";
 import type { InvitePreview } from "@/types/invite";
 
-// Landing page for a shared group/channel invite link (e.g. /invite/abc123).
-// Backed by an endpoint that doesn't exist on the live backend yet — see
-// docs/BACKEND_REQUIREMENTS.md. Sits inside the (app) route group, so an
-// unauthenticated visitor is redirected to /login by the layout first and
-// loses the invite target — that continuation isn't handled yet either.
 export default function InvitePage() {
   const params = useParams<{ token: string }>();
   const router = useRouter();

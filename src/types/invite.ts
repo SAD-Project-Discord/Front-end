@@ -1,6 +1,3 @@
-// Shareable invite links for groups/channels. Not implemented by the live
-// backend yet — see docs/BACKEND_REQUIREMENTS.md for the proposed contract.
-
 export interface InviteLinkInfo {
   token: string;
   url: string;

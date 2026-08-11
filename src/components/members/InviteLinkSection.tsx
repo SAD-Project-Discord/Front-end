@@ -15,7 +15,6 @@ export interface InviteLinkSectionProps {
   onGenerate: () => void;
 }
 
-/** Backed by an endpoint that doesn't exist on the live backend yet — see docs/BACKEND_REQUIREMENTS.md. */
 export function InviteLinkSection({ targetName, link, loading, error, onGenerate }: InviteLinkSectionProps) {
   const [copied, setCopied] = useState<"link" | "message" | null>(null);
 

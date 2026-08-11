@@ -18,7 +18,6 @@ import ListItemText from "@mui/material/ListItemText";
 import CircularProgress from "@mui/material/CircularProgress";
 import AddRounded from "@mui/icons-material/AddRounded";
 import TagRounded from "@mui/icons-material/TagRounded";
-import GroupRounded from "@mui/icons-material/GroupRounded";
 import KeyboardDoubleArrowDownRounded from "@mui/icons-material/KeyboardDoubleArrowDownRounded";
 import ScheduleSendRounded from "@mui/icons-material/ScheduleSendRounded";
 import SettingsRounded from "@mui/icons-material/SettingsRounded";
@@ -46,7 +45,7 @@ import { ChatInput } from "@/components/chat/ChatInput";
 import { MessageList } from "@/components/chat/MessageList";
 import { SearchOverlay, type MessageSearchResultItem } from "@/components/chat/SearchOverlay";
 import CreateChannelModal from "@/components/channel/CreateChannelModal";
-import ChannelMembersDialog from "@/components/channel/ChannelMembersDialog";
+import ChannelSettingsModal from "@/components/channel/ChannelSettingsModal";
 
 const PAGE_SIZE = 30;
 const TYPING_STOP_DELAY_MS = 2000;
@@ -84,7 +83,7 @@ function ChannelsPage() {
   const [typingNames, setTypingNames] = useState<Map<string, string>>(new Map());
 
   const [createOpen, setCreateOpen] = useState(false);
-  const [membersOpen, setMembersOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
 
@@ -638,10 +637,11 @@ function ChannelsPage() {
               onBack={() => setActiveChannelId(undefined)}
               onToggleSearch={() => setSearchOpen((v) => !v)}
               isSearchOpen={searchOpen}
+              onHeaderClick={() => setSettingsOpen(true)}
               actions={
-                <Tooltip title="Members">
-                  <IconButton onClick={() => setMembersOpen(true)} aria-label="Channel members">
-                    <GroupRounded />
+                <Tooltip title="Channel settings">
+                  <IconButton onClick={() => setSettingsOpen(true)} aria-label="Channel settings">
+                    <SettingsRounded />
                   </IconButton>
                 </Tooltip>
               }
@@ -684,12 +684,16 @@ function ChannelsPage() {
               placeholder={`Message #${activeChannel.name}`}
             />
 
-            <ChannelMembersDialog
-              open={membersOpen}
-              onClose={() => setMembersOpen(false)}
+            <ChannelSettingsModal
+              key={activeChannel.id}
+              open={settingsOpen}
+              onClose={() => setSettingsOpen(false)}
               channel={activeChannel}
               currentUserId={currentUser.id}
-              onLeftOrDeleted={() => setActiveChannelId(undefined)}
+              onLeftOrDeleted={() => {
+                setSettingsOpen(false);
+                setActiveChannelId(undefined);
+              }}
             />
 
             <SearchOverlay
