@@ -52,20 +52,29 @@ export function MessageList({
   const isNearBottomRef = useRef(true);
   const [highlighted, setHighlighted] = useState<string | null>(null);
 
-  // Preserve scroll position when older messages are prepended.
+  // Preserve scroll position when older messages are prepended, and
+  // auto-scroll to the bottom when new messages arrive while the user is
+  // already near the bottom (so live messages don't require a manual scroll).
   useLayoutEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
 
-    if (prevScrollHeight.current !== null && messages.length > prevMessageCount.current) {
-      const addedHeight = el.scrollHeight - prevScrollHeight.current;
-      if (addedHeight > 0 && !isNearBottomRef.current) {
-        el.scrollTop += addedHeight;
-      } else if (isNearBottomRef.current) {
-        el.scrollTop = el.scrollHeight;
+    const messageCountIncreased = messages.length > prevMessageCount.current;
+
+    if (prevScrollHeight.current !== null) {
+      if (messageCountIncreased) {
+        const addedHeight = el.scrollHeight - prevScrollHeight.current;
+        if (addedHeight > 0 && !isNearBottomRef.current) {
+          el.scrollTop += addedHeight;
+        } else if (isNearBottomRef.current) {
+          el.scrollTop = el.scrollHeight;
+        }
       }
+      prevScrollHeight.current = null;
+    } else if (messageCountIncreased && isNearBottomRef.current) {
+      el.scrollTop = el.scrollHeight;
     }
-    prevScrollHeight.current = null;
+
     prevMessageCount.current = messages.length;
   }, [messages]);
 

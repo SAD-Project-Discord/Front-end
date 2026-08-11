@@ -1,5 +1,6 @@
 // src/lib/api/chat.ts
 import type { ApiMessage } from './messages';
+import type { GroupInvitationInfo } from '@/types/group';
 
 const WS_BASE_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000/ws/v1';
 
@@ -8,12 +9,18 @@ export type Room =
   | { type: "group"; target_id: string }
   | { type: "channel"; target_id: string; topic_id?: string };
 
+// group.member_removed / channel.member_removed / group.invitation.received
+// are not emitted by the live backend yet — see docs/BACKEND_REQUIREMENTS.md
+// for the proposed contract these handlers are written against.
 export type WsIncoming =
   | { event: "connected"; data: { user_id: string } }
   | { event: "message.new"; data: ApiMessage }
   | { event: "message.updated"; data: ApiMessage }
   | { event: "message.deleted"; data: { id: string; room: string } }
   | { event: "typing"; data: { user_id: string; is_typing: boolean; room: string } }
+  | { event: "group.member_removed"; data: { group_id: string; user_id: string; removed_by: string } }
+  | { event: "channel.member_removed"; data: { channel_id: string; user_id: string; removed_by: string } }
+  | { event: "group.invitation.received"; data: GroupInvitationInfo }
   | { event: "error"; data: { code: string; message: string } };
 
 type EventDataOf<E extends WsIncoming["event"]> = Extract<WsIncoming, { event: E }>["data"];
