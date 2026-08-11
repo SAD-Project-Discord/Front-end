@@ -19,6 +19,7 @@ import CircularProgress from "@mui/material/CircularProgress";
 import AddRounded from "@mui/icons-material/AddRounded";
 import TagRounded from "@mui/icons-material/TagRounded";
 import KeyboardDoubleArrowDownRounded from "@mui/icons-material/KeyboardDoubleArrowDownRounded";
+import PublicRounded from "@mui/icons-material/PublicRounded";
 import ScheduleSendRounded from "@mui/icons-material/ScheduleSendRounded";
 import SettingsRounded from "@mui/icons-material/SettingsRounded";
 import TravelExploreRounded from "@mui/icons-material/TravelExploreRounded";
@@ -47,6 +48,7 @@ import { SearchOverlay, type MessageSearchResultItem } from "@/components/chat/S
 import CreateChannelModal from "@/components/channel/CreateChannelModal";
 import ChannelSettingsModal from "@/components/channel/ChannelSettingsModal";
 import ChannelThreadsBar from "@/components/channel/ChannelThreadsBar";
+import DiscoverChannelsDialog from "@/components/channel/DiscoverChannelsDialog";
 
 const PAGE_SIZE = 30;
 const TYPING_STOP_DELAY_MS = 2000;
@@ -85,6 +87,7 @@ function ChannelsPage() {
   const [typingNames, setTypingNames] = useState<Map<string, string>>(new Map());
 
   const [createOpen, setCreateOpen] = useState(false);
+  const [discoverOpen, setDiscoverOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
@@ -601,6 +604,11 @@ function ChannelsPage() {
               <TravelExploreRounded fontSize="small" />
             </IconButton>
           </Tooltip>
+          <Tooltip title="Discover public channels">
+            <IconButton size="small" onClick={() => setDiscoverOpen(true)} aria-label="Discover public channels">
+              <PublicRounded fontSize="small" />
+            </IconButton>
+          </Tooltip>
           <Tooltip title="Scheduled messages">
             <IconButton size="small" onClick={() => router.push("/scheduled")} aria-label="Scheduled messages">
               <ScheduleSendRounded fontSize="small" />
@@ -772,6 +780,14 @@ function ChannelsPage() {
         open={createOpen}
         onClose={() => setCreateOpen(false)}
         onCreated={(channel: Channel) => {
+          setActiveChannelId(channel.id);
+        }}
+      />
+
+      <DiscoverChannelsDialog
+        open={discoverOpen}
+        onClose={() => setDiscoverOpen(false)}
+        onJoined={(channel: Channel) => {
           setActiveChannelId(channel.id);
         }}
       />

@@ -71,6 +71,19 @@ class ChannelStore {
 
   topicActionError: string | null = null;
 
+  // -------------------------------------------------------------------
+  // Public channel discovery/join. These call backend endpoints that
+  // don't exist yet — see docs/BACKEND_REQUIREMENTS.md.
+  // -------------------------------------------------------------------
+
+  publicChannels: Channel[] = [];
+
+  publicChannelsLoading = false;
+
+  publicChannelsError: string | null = null;
+
+  isJoiningChannel = false;
+
   constructor() {
     makeAutoObservable(this);
   }
@@ -541,6 +554,51 @@ class ChannelStore {
         this.topicActionError = getErrorMessage(error, "Could not delete thread.");
       });
       return false;
+    }
+  }
+
+  async searchPublicChannels(query: string): Promise<void> {
+    this.publicChannelsLoading = true;
+    this.publicChannelsError = null;
+
+    try {
+      const response = await channelService.listPublicChannels(query);
+      runInAction(() => {
+        this.publicChannels = response.data;
+      });
+    } catch (error: unknown) {
+      runInAction(() => {
+        this.publicChannels = [];
+        this.publicChannelsError = getErrorMessage(error, "Could not search public channels.");
+      });
+    } finally {
+      runInAction(() => {
+        this.publicChannelsLoading = false;
+      });
+    }
+  }
+
+  async joinPublicChannel(channelId: string): Promise<Channel | null> {
+    this.isJoiningChannel = true;
+    this.publicChannelsError = null;
+
+    try {
+      const response = await channelService.joinChannel(channelId);
+      runInAction(() => {
+        if (!this.myChannels.some((c) => c.id === response.data.id)) {
+          this.myChannels = [response.data, ...this.myChannels];
+        }
+      });
+      return response.data;
+    } catch (error: unknown) {
+      runInAction(() => {
+        this.publicChannelsError = getErrorMessage(error, "Could not join that channel.");
+      });
+      return null;
+    } finally {
+      runInAction(() => {
+        this.isJoiningChannel = false;
+      });
     }
   }
 }

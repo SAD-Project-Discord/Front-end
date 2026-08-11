@@ -160,6 +160,18 @@ class ChannelService {
   async deleteTopic(channelId: string, topicId: string): Promise<void> {
     await api.delete(`/channels/${channelId}/topics/${topicId}`);
   }
+
+  /** Not implemented by the live backend yet — see docs/BACKEND_REQUIREMENTS.md. */
+  async listPublicChannels(query: string): Promise<ChannelsResponse> {
+    const { data } = await api.get<ChannelsResponse>(`/channels/public/?q=${encodeURIComponent(query)}`);
+    return data;
+  }
+
+  /** Not implemented by the live backend yet — see docs/BACKEND_REQUIREMENTS.md. */
+  async joinChannel(channelId: string): Promise<ChannelResponse> {
+    const { data } = await api.post<ChannelResponse>(`/channels/${channelId}/join`, {});
+    return data;
+  }
 }
 
 export const channelService = new ChannelService();
