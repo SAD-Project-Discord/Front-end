@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Alert,
   Avatar,
@@ -22,9 +22,12 @@ import {
   Typography,
 } from "@mui/material";
 import { Close, PersonAddAlt, PersonRemove } from "@mui/icons-material";
+import Switch from "@mui/material/Switch";
+import FormControlLabel from "@mui/material/FormControlLabel";
 import { observer } from "mobx-react-lite";
 import channelStore from "@/stores/ChannelStore";
 import AddMembersModal from "@/components/members/AddMembersModal";
+import { InviteLinkSection } from "@/components/members/InviteLinkSection";
 import type { Channel } from "@/types/channel";
 
 export interface ChannelMembersDialogProps {
@@ -39,13 +42,24 @@ function ChannelMembersDialog({ open, onClose, channel, currentUserId, onLeftOrD
   const [addOpen, setAddOpen] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [working, setWorking] = useState(false);
+  const [savingPrivacy, setSavingPrivacy] = useState(false);
 
   const isOwner = channel.creator_id === currentUserId;
+
+  useEffect(() => {
+    if (open) channelStore.clearInviteLink();
+  }, [open, channel.id]);
 
   async function handleRemove(userId: string) {
     setWorking(true);
     await channelStore.removeChannelMember(channel.id, userId);
     setWorking(false);
+  }
+
+  async function handleTogglePrivacy() {
+    setSavingPrivacy(true);
+    await channelStore.updateChannelInfo(channel.id, { is_private: !(channel.is_private ?? true) });
+    setSavingPrivacy(false);
   }
 
   async function handleLeaveOrDelete() {
@@ -128,15 +142,44 @@ function ChannelMembersDialog({ open, onClose, channel, currentUserId, onLeftOrD
         </Box>
 
         {isOwner ? (
-          <Button
-            fullWidth
-            variant="outlined"
-            startIcon={<PersonAddAlt fontSize="small" />}
-            sx={{ mt: 2 }}
-            onClick={() => setAddOpen(true)}
-          >
-            Add members
-          </Button>
+          <>
+            <Button
+              fullWidth
+              variant="outlined"
+              startIcon={<PersonAddAlt fontSize="small" />}
+              sx={{ mt: 2 }}
+              onClick={() => setAddOpen(true)}
+            >
+              Add members
+            </Button>
+
+            <Divider sx={{ my: 2 }} />
+            <Typography variant="subtitle2" sx={{ mb: 1.5 }}>
+              Channel settings
+            </Typography>
+            <FormControlLabel
+              sx={{ ml: 0, width: "100%", justifyContent: "space-between", mb: 2 }}
+              control={<Switch checked={channel.is_private ?? true} onChange={handleTogglePrivacy} disabled={savingPrivacy} />}
+              labelPlacement="start"
+              label={
+                <Box>
+                  <Typography variant="body2" sx={{ color: "text.primary", fontWeight: 500 }}>
+                    Private channel
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                    {channel.is_private ?? true ? "Only added members can join." : "Anyone can find and join this channel."}
+                  </Typography>
+                </Box>
+              }
+            />
+            <InviteLinkSection
+              targetName={channel.name}
+              link={channelStore.inviteLink}
+              loading={channelStore.inviteLinkLoading}
+              error={channelStore.inviteLinkError}
+              onGenerate={() => channelStore.getOrCreateInviteLink(channel.id)}
+            />
+          </>
         ) : null}
 
         <Divider sx={{ my: 2 }} />

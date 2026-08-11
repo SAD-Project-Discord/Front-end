@@ -63,6 +63,29 @@ function ImageAttachment({ attachment }: { attachment: MessageAttachment }) {
   );
 }
 
+// A plain `<a download>` only gets its filename honored by the browser for
+// same-origin (or blob:/data:) URLs. Attachments are served straight from
+// the backend's storage origin, so we fetch the bytes ourselves and hand the
+// browser a same-origin blob: URL instead — that's what actually makes the
+// saved file use `attachment.fileName` instead of the storage key/UUID.
+async function downloadAttachment(attachment: MessageAttachment) {
+  try {
+    const response = await fetch(attachment.fileUrl);
+    if (!response.ok) throw new Error("download failed");
+    const blob = await response.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = objectUrl;
+    link.download = attachment.fileName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(objectUrl);
+  } catch {
+    window.open(attachment.fileUrl, "_blank", "noopener,noreferrer");
+  }
+}
+
 function FileAttachment({ attachment, broken }: { attachment: MessageAttachment; broken?: boolean }) {
   return (
     <Stack
@@ -99,11 +122,7 @@ function FileAttachment({ attachment, broken }: { attachment: MessageAttachment;
       </Stack>
       <IconButton
         size="small"
-        component="a"
-        href={attachment.fileUrl}
-        download={attachment.fileName}
-        target="_blank"
-        rel="noreferrer"
+        onClick={() => downloadAttachment(attachment)}
         aria-label="Download attachment"
       >
         <DownloadRoundedIcon fontSize="small" />

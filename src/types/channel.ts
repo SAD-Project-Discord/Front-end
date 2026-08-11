@@ -12,6 +12,12 @@ export interface Channel {
   description: string;
   creator_id: string;
   topic_count: number;
+  /**
+   * Not implemented by the live backend yet — see
+   * `docs/BACKEND_REQUIREMENTS.md`. Optional so existing call sites keep
+   * working; treat as unknown (not `false`) until the backend adds it.
+   */
+  is_private?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -19,6 +25,7 @@ export interface Channel {
 export interface CreateChannelRequest {
   name: string;
   description?: string;
+  is_private?: boolean;
 }
 
 export interface ChannelResponse {
