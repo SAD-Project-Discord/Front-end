@@ -102,6 +102,7 @@ class GroupStore {
     this.error = message;
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private normalizeMembers(rawMembers: Array<any>, existingMembers?: GroupMember[]): GroupMember[] {
     return rawMembers.map((member) => {
       const id = member.id ?? member.user_id ?? `${member.group_id ?? member.groupId}-${member.user_id ?? member.id}`;
@@ -163,6 +164,7 @@ class GroupStore {
 
     try {
       const response = await groupService.getGroup(groupId);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const rawGroup = response.data as Group & { members?: Array<any> };
 
       runInAction(() => {

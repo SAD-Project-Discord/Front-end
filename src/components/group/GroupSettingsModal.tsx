@@ -28,8 +28,6 @@ import {
   Shield,
   Subject,
   ArrowForward,
-  ArrowUpward,
-  ArrowDownward,
 } from "@mui/icons-material";
 import { observer } from "mobx-react-lite";
 import IconTextField from "@/components/auth/IconTextField";
@@ -38,7 +36,7 @@ import groupStore from "@/stores/GroupStore";
 import authStore from "@/stores/AuthStore";
 import userService from "@/services/user.service";
 import { runInAction } from "mobx";
-import type { Group, GroupMember, UpdateGroupRequest, GroupRole } from "@/types/group";
+import type { Group, GroupMember, UpdateGroupRequest } from "@/types/group";
 
 interface GroupSettingsModalProps {
   open: boolean;
@@ -69,7 +67,22 @@ function GroupSettingsModal({ open, onClose, groupId, onUpdated, onDeleted }: Gr
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  const [prevGroupId, setPrevGroupId] = useState<string | null>(null);
+  const [wasOpen, setWasOpen] = useState(false);
+
   const group = groupStore.currentGroup;
+
+  if (open !== wasOpen || (open && group && group.id !== prevGroupId)) {
+    setWasOpen(open);
+    setPrevGroupId(open && group ? group.id : null);
+    if (open && group) {
+      setValues({
+        name: group.name ?? "",
+        description: group.description ?? "",
+      });
+      setFormError(null);
+    }
+  }
   const members = group?.members ?? [];
   const isAdmin =
     group?.my_role === "admin" ||
@@ -95,22 +108,12 @@ function GroupSettingsModal({ open, onClose, groupId, onUpdated, onDeleted }: Gr
           runInAction(() => {
             authStore.user = profile;
           });
-        } catch (e) {
+        } catch {
           // ignore
         }
       })();
     }
   }, [open]);
-
-  useEffect(() => {
-    if (open && group) {
-      setValues({
-        name: group.name ?? "",
-        description: group.description ?? "",
-      });
-      setFormError(null);
-    }
-  }, [open, group]);
 
   const handleChange = (field: keyof GroupFormValues) => (event: ChangeEvent<HTMLInputElement>) => {
     const value = event.target.value;
@@ -150,13 +153,6 @@ function GroupSettingsModal({ open, onClose, groupId, onUpdated, onDeleted }: Gr
     if (updated) {
       onUpdated?.(updated);
     }
-  };
-
-  const handleToggleRole = async (member: GroupMember) => {
-    if (!group) return;
-
-    const nextRole: GroupRole = member.role === "admin" ? "member" : "admin";
-    await groupStore.updateGroupMemberRole(group.id, member.user.id, nextRole);
   };
 
   const handleRemoveMember = async (member: GroupMember) => {
@@ -363,7 +359,6 @@ function GroupSettingsModal({ open, onClose, groupId, onUpdated, onDeleted }: Gr
                           const user = member.user;
                           const isSelf = user?.id === authStore.user?.id;
                           const canModify = isAdmin && !!user && !isSelf;
-                          const isMemberAdmin = member.role === "admin";
                           const displayName = user?.name || user?.username || "Unknown member";
                           const displayUsername = user?.username ? `@${user.username}` : "@unknown";
 

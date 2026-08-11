@@ -61,7 +61,6 @@ import { MessageList } from "@/components/chat/MessageList";
 import { SearchOverlay, type MessageSearchResultItem } from "@/components/chat/SearchOverlay";
 import CreateGroupModal from "@/components/group/CreateGroupModal";
 import GroupSettingsModal from "@/components/group/GroupSettingsModal";
-import GroupMembersDialog from "@/components/group/GroupMembersDialog";
 import DiscoverGroupsDialog from "@/components/group/DiscoverGroupsDialog";
 
 const PAGE_SIZE = 30;
@@ -809,7 +808,7 @@ function GroupsPage() {
               open={settingsOpen}
               onClose={() => setSettingsOpen(false)}
               groupId={activeGroup.id}
-              onUpdated={(group) => {
+              onUpdated={() => {
                 groupStore.loadMyGroups();
               }}
               onDeleted={() => {
