@@ -1,19 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import IconButton from "@mui/material/IconButton";
-import TextField from "@mui/material/TextField";
-import InputAdornment from "@mui/material/InputAdornment";
 import Avatar from "@mui/material/Avatar";
 import Tooltip from "@mui/material/Tooltip";
 import Snackbar from "@mui/material/Snackbar";
 import Alert from "@mui/material/Alert";
 import Button from "@mui/material/Button";
-import SearchRounded from "@mui/icons-material/SearchRounded";
 import AddCommentRounded from "@mui/icons-material/AddCommentRounded";
 import TravelExploreRounded from "@mui/icons-material/TravelExploreRounded";
 import KeyboardDoubleArrowDownRounded from "@mui/icons-material/KeyboardDoubleArrowDownRounded";
@@ -30,6 +27,8 @@ import { ApiError } from "@/lib/api/api";
 import { chatWs } from "@/lib/api/chat";
 import { loadDmContacts, markDmContactRead, upsertDmContact, type DmContact } from "@/lib/chat/dmContacts";
 import { apiMessageToMessage } from "@/lib/chat/mappers";
+import groupStore from "@/stores/GroupStore";
+import channelStore from "@/stores/ChannelStore";
 
 import { ChatHeader } from "@/components/chat/ChatHeader";
 import { ChatInput } from "@/components/chat/ChatInput";
@@ -74,8 +73,9 @@ function sortByRecentActivity(contacts: DmContact[]): DmContact[] {
   return [...contacts].sort((a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime());
 }
 
-export default function DirectMessagesPage() {
+function DirectMessagesPageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   // Seeded synchronously from localStorage rather than via an effect: this
   // page is only ever mounted client-side (the protected layout withholds
@@ -92,7 +92,6 @@ export default function DirectMessagesPage() {
     return cached ? sortByRecentActivity(loadDmContacts(cached.id)) : [];
   });
   const [activeContactId, setActiveContactId] = useState<string | undefined>(undefined);
-  const [sidebarFilter, setSidebarFilter] = useState("");
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
@@ -135,12 +134,6 @@ export default function DirectMessagesPage() {
     if (activeUser) map[activeUser.id] = activeUser;
     return map;
   }, [currentUser, activeUser]);
-
-  const filteredContacts = useMemo(() => {
-    const query = sidebarFilter.trim().toLowerCase();
-    if (!query) return contacts;
-    return contacts.filter((c) => c.name.toLowerCase().includes(query) || c.username.toLowerCase().includes(query));
-  }, [contacts, sidebarFilter]);
 
   // ---- bootstrap: refresh the cached user/profile in the background ----
   useEffect(() => {
@@ -230,7 +223,7 @@ export default function DirectMessagesPage() {
     }
 
     function handleMessageDeleted(data: { id: string }) {
-      setMessages((prev) => prev.map((m) => (m.id === data.id ? { ...m, isDeleted: true } : m)));
+      setMessages((prev) => prev.filter((m) => m.id !== data.id));
     }
 
     function handleTyping(data: { user_id: string; is_typing: boolean; room: string }) {
@@ -456,9 +449,9 @@ export default function DirectMessagesPage() {
   }, []);
 
   const handleDelete = useCallback((message: Message) => {
-    setMessages((prev) => prev.map((m) => (m.id === message.id ? { ...m, isDeleted: true } : m)));
+    setMessages((prev) => prev.filter((m) => m.id !== message.id));
     messagesApi.deleteMessage(message.id).catch(() => {
-      setMessages((prev) => prev.map((m) => (m.id === message.id ? { ...m, isDeleted: false } : m)));
+      setMessages((prev) => mergeMessage(prev, message));
       setToast({ message: "Couldn't delete that message.", severity: "error" });
     });
   }, []);
@@ -539,6 +532,42 @@ export default function DirectMessagesPage() {
     [messages],
   );
 
+  /** Cross-scope global search / cross-page navigation lands here (e.g. a link like /dm?open=<id>&highlight=<messageId>). */
+  const handleGlobalSearchResult = useCallback(
+    (result: MessageSearchResultItem) => {
+      if (result.scope && result.scope !== "direct") {
+        setGlobalSearchOpen(false);
+        router.push(`/${result.scope === "group" ? "groups" : "channels"}?open=${result.otherUserId}&highlight=${result.id}`);
+        return;
+      }
+      revealSearchResult(result);
+    },
+    [router, revealSearchResult],
+  );
+
+  // ---- consume a cross-page "open this conversation" link once, then strip the query string ----
+  const consumedNavParamsRef = useRef(false);
+  useEffect(() => {
+    if (consumedNavParamsRef.current) return;
+    const openId = searchParams.get("open");
+    if (!openId) return;
+    consumedNavParamsRef.current = true;
+    const highlightId = searchParams.get("highlight") ?? "";
+    // Synchronizing view state to an incoming navigation link (external to
+    // React) — a legitimate effect, not state derivable from render.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    revealSearchResult({
+      id: highlightId,
+      content: "",
+      createdAt: "",
+      senderId: "",
+      otherUserId: openId,
+      otherUserName: openId,
+    });
+    router.replace("/dm", { scroll: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
   const isConversationOpen = Boolean(activeContactId);
 
   if (!currentUser) {
@@ -566,13 +595,22 @@ export default function DirectMessagesPage() {
         }}
       >
         <Stack direction="row" spacing={1} sx={{ alignItems: "center", px: 2, pt: 2, pb: 1 }}>
-          <Avatar
-            src={currentUser.avatarUrl || undefined}
-            slotProps={{ img: { loading: "lazy", decoding: "async" } }}
-            sx={{ width: 32, height: 32, fontSize: 13 }}
-          >
-            {currentUser.displayName.charAt(0).toUpperCase()}
-          </Avatar>
+          <Tooltip title="Your profile">
+            <IconButton
+              size="small"
+              onClick={() => router.push("/profile")}
+              aria-label="Open your profile"
+              sx={{ p: 0 }}
+            >
+              <Avatar
+                src={currentUser.avatarUrl || undefined}
+                slotProps={{ img: { loading: "lazy", decoding: "async" } }}
+                sx={{ width: 32, height: 32, fontSize: 13 }}
+              >
+                {currentUser.displayName.charAt(0).toUpperCase()}
+              </Avatar>
+            </IconButton>
+          </Tooltip>
           <Typography variant="subtitle1" sx={{ fontWeight: 700, flex: 1 }} noWrap>
             Direct Messages
           </Typography>
@@ -598,34 +636,11 @@ export default function DirectMessagesPage() {
           </Tooltip>
         </Stack>
 
-        <Box sx={{ px: 2, pb: 1.5 }}>
-          <TextField
-            size="small"
-            fullWidth
-            placeholder="Filter conversations"
-            value={sidebarFilter}
-            onChange={(e) => setSidebarFilter(e.target.value)}
-            slotProps={{
-              input: {
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchRounded fontSize="small" />
-                  </InputAdornment>
-                ),
-              },
-            }}
-          />
-        </Box>
-
         <ConversationList
-          contacts={filteredContacts}
+          contacts={contacts}
           activeContactId={activeContactId}
           onSelectContact={handleSelectContact}
-          emptyState={
-            sidebarFilter
-              ? `No conversations match "${sidebarFilter}"`
-              : "No conversations yet — start one with the compose button above"
-          }
+          emptyState="No conversations yet — start one with the compose button above"
         />
       </Box>
 
@@ -731,13 +746,41 @@ export default function DirectMessagesPage() {
         open={globalSearchOpen}
         onClose={() => setGlobalSearchOpen(false)}
         title="All conversations"
-        placeholder="Search across all your direct messages"
+        placeholder="Search across your DMs, groups, and channels"
         showParticipant
         onSearch={async (query) => {
           const res = await messagesApi.searchGlobal(query);
-          const direct = res.data.filter((m) => !m.group_id && !m.channel_id);
+          if (groupStore.myGroups.length === 0) groupStore.loadMyGroups();
+          if (channelStore.myChannels.length === 0) channelStore.loadMyChannels();
+
           const items = await Promise.all(
-            direct.map(async (m) => {
+            res.data.map(async (m) => {
+              if (m.group_id) {
+                const group = groupStore.myGroups.find((g) => g.id === m.group_id);
+                return {
+                  id: m.id,
+                  content: m.content,
+                  createdAt: m.created_at,
+                  senderId: m.sender_id,
+                  otherUserId: m.group_id,
+                  otherUserName: group?.name ?? "Group",
+                  scope: "group",
+                } satisfies MessageSearchResultItem;
+              }
+
+              if (m.channel_id) {
+                const channel = channelStore.myChannels.find((c) => c.id === m.channel_id);
+                return {
+                  id: m.id,
+                  content: m.content,
+                  createdAt: m.created_at,
+                  senderId: m.sender_id,
+                  otherUserId: m.channel_id,
+                  otherUserName: channel?.name ?? "Channel",
+                  scope: "channel",
+                } satisfies MessageSearchResultItem;
+              }
+
               const otherUserId = (m.sender_id === currentUser.id ? m.receiver_id : m.sender_id)!;
               const knownContact = contactsRef.current.find((c) => c.userId === otherUserId);
               const knownProfile = userProfileCache.current.get(otherUserId);
@@ -774,12 +817,13 @@ export default function DirectMessagesPage() {
                 otherUserId,
                 otherUserName: name,
                 otherUserAvatarUrl: avatarUrl,
+                scope: "direct",
               } satisfies MessageSearchResultItem;
             }),
           );
           return items;
         }}
-        onSelectResult={revealSearchResult}
+        onSelectResult={handleGlobalSearchResult}
       />
 
       <Snackbar open={Boolean(toast)} autoHideDuration={4000} onClose={() => setToast(null)}>
@@ -790,5 +834,13 @@ export default function DirectMessagesPage() {
         ) : undefined}
       </Snackbar>
     </Box>
+  );
+}
+
+export default function DirectMessagesPage() {
+  return (
+    <Suspense fallback={null}>
+      <DirectMessagesPageInner />
+    </Suspense>
   );
 }

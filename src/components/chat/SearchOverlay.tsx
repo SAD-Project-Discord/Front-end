@@ -24,6 +24,14 @@ export interface MessageSearchResultItem {
   otherUserId: string;
   otherUserName: string;
   otherUserAvatarUrl?: string;
+  /**
+   * Set only by cross-scope global search (`messagesApi.searchGlobal`) to
+   * say which section this result belongs to, so the selecting page can
+   * either reveal it locally or navigate to the right section. Absent for
+   * scoped, single-conversation search — those results are always the same
+   * scope as the page they were searched from.
+   */
+  scope?: "direct" | "group" | "channel";
 }
 
 export interface SearchOverlayProps {

@@ -19,6 +19,7 @@ import SendRoundedIcon from "@mui/icons-material/SendRounded";
 import ErrorOutlineRoundedIcon from "@mui/icons-material/ErrorOutlineRounded";
 import ScheduleSendRoundedIcon from "@mui/icons-material/ScheduleSendRounded";
 import { storageApi } from "@/lib/api/storage";
+import { ApiError } from "@/lib/api/api";
 import type { MessageAttachment } from "@/lib/types";
 import { EmojiPicker } from "./EmojiPicker";
 import { StickerPicker } from "./StickerPicker";
@@ -34,6 +35,7 @@ interface PendingAttachment {
   file: File;
   status: "uploading" | "done" | "error";
   attachment?: MessageAttachment;
+  errorMessage?: string;
 }
 
 export interface ChatInputProps {
@@ -107,8 +109,9 @@ export function ChatInput({
         };
         setPending((prev) => prev.map((p) => (p.localId === localId ? { ...p, status: "done", attachment } : p)));
       })
-      .catch(() => {
-        setPending((prev) => prev.map((p) => (p.localId === localId ? { ...p, status: "error" } : p)));
+      .catch((err) => {
+        const errorMessage = err instanceof ApiError ? err.message : "Upload failed";
+        setPending((prev) => prev.map((p) => (p.localId === localId ? { ...p, status: "error", errorMessage } : p)));
       });
   }
 
@@ -148,7 +151,7 @@ export function ChatInput({
                 p.status === "uploading" ? (
                   <CircularProgress size={14} sx={{ ml: 1 }} />
                 ) : p.status === "error" ? (
-                  <Tooltip title="Upload failed">
+                  <Tooltip title={p.errorMessage ?? "Upload failed"}>
                     <ErrorOutlineRoundedIcon color="error" sx={{ fontSize: 16 }} />
                   </Tooltip>
                 ) : undefined

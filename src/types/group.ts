@@ -102,6 +102,13 @@ export interface GroupInfo {
   member_count: number;
   /** Present on create/get/list responses from the live backend. */
   members?: GroupMemberInfo[];
+  /**
+   * Not currently returned by the live backend's list/get responses — see
+   * `docs/BACKEND_REQUIREMENTS.md`. Optional here so existing call sites
+   * that don't have it keep working; treat as unknown (not `false`) until
+   * the backend adds it.
+   */
+  is_private?: boolean;
   created_at: string;
   updated_at: string;
 }

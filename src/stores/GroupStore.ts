@@ -75,6 +75,25 @@ class GroupStore {
 
   invitationsError: string | null = null;
 
+  // -------------------------------------------------------------------
+  // Public group discovery/join and invite links. These call backend
+  // endpoints that don't exist yet — see docs/BACKEND_REQUIREMENTS.md.
+  // -------------------------------------------------------------------
+
+  publicGroups: GroupInfo[] = [];
+
+  publicGroupsLoading = false;
+
+  publicGroupsError: string | null = null;
+
+  isJoiningGroup = false;
+
+  inviteLink: string | null = null;
+
+  inviteLinkLoading = false;
+
+  inviteLinkError: string | null = null;
+
   constructor() {
     makeAutoObservable(this);
   }
@@ -532,6 +551,94 @@ class GroupStore {
       });
       return false;
     }
+  }
+
+  /** Evicts a group the current user is no longer a member of (e.g. removed by the owner). */
+  evictGroup(groupId: string) {
+    this.myGroups = this.myGroups.filter((g) => g.id !== groupId);
+  }
+
+  /** Drops a member from the currently loaded member list without hitting the API (e.g. a live WS event about someone else). */
+  removeMemberLocally(userId: string) {
+    this.groupMembers = this.groupMembers.filter((m) => m.user_id !== userId);
+  }
+
+  /** Appends an invitation pushed live over the WS connection, ignoring duplicates. */
+  addInvitationLocally(invitation: GroupInvitationInfo) {
+    if (this.myInvitations.some((invite) => invite.id === invitation.id)) return;
+    this.myInvitations = [invitation, ...this.myInvitations];
+  }
+
+  async searchPublicGroups(query: string): Promise<void> {
+    this.publicGroupsLoading = true;
+    this.publicGroupsError = null;
+
+    try {
+      const response = await groupService.listPublicGroups(query);
+      runInAction(() => {
+        this.publicGroups = response.data;
+      });
+    } catch (error: unknown) {
+      runInAction(() => {
+        this.publicGroups = [];
+        this.publicGroupsError = getErrorMessage(error, "Could not search public groups.");
+      });
+    } finally {
+      runInAction(() => {
+        this.publicGroupsLoading = false;
+      });
+    }
+  }
+
+  async joinPublicGroup(groupId: string): Promise<GroupInfo | null> {
+    this.isJoiningGroup = true;
+    this.publicGroupsError = null;
+
+    try {
+      const response = await groupService.joinGroup(groupId);
+      runInAction(() => {
+        if (!this.myGroups.some((g) => g.id === response.data.id)) {
+          this.myGroups = [response.data, ...this.myGroups];
+        }
+      });
+      return response.data;
+    } catch (error: unknown) {
+      runInAction(() => {
+        this.publicGroupsError = getErrorMessage(error, "Could not join that group.");
+      });
+      return null;
+    } finally {
+      runInAction(() => {
+        this.isJoiningGroup = false;
+      });
+    }
+  }
+
+  async getOrCreateInviteLink(groupId: string): Promise<string | null> {
+    this.inviteLinkLoading = true;
+    this.inviteLinkError = null;
+
+    try {
+      const response = await groupService.createInviteLink(groupId);
+      runInAction(() => {
+        this.inviteLink = response.data.url;
+      });
+      return response.data.url;
+    } catch (error: unknown) {
+      runInAction(() => {
+        this.inviteLinkError = getErrorMessage(error, "Could not create an invite link.");
+      });
+      return null;
+    } finally {
+      runInAction(() => {
+        this.inviteLinkLoading = false;
+      });
+    }
+  }
+
+  clearInviteLink() {
+    this.inviteLink = null;
+    this.inviteLinkError = null;
   }
 }
 

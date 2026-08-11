@@ -7,12 +7,12 @@ import type {
 
 class SettingsService {
   async getSettings(): Promise<UserPrivacySettingResponse> {
-    const { data } = await api.get<UserPrivacySettingResponse>("/users/me/settings");
+    const { data } = await api.get<UserPrivacySettingResponse>("/users/me/privacy/");
     return data;
   }
 
   async updateSettings(patch: UpdateUserPrivacySettingRequest): Promise<UserPrivacySettingResponse> {
-    const { data } = await api.patch<UserPrivacySettingResponse>("/users/me/settings", patch);
+    const { data } = await api.patch<UserPrivacySettingResponse>("/users/me/privacy/", patch);
     return data;
   }
 }

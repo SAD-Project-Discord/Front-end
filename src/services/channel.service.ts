@@ -7,6 +7,7 @@ import type {
   ChannelsResponse,
   CreateChannelRequest,
 } from "@/types/channel";
+import type { InviteLinkResponse } from "@/types/invite";
 
 class ChannelService {
   async listChannels(): Promise<ChannelsResponse> {
@@ -48,6 +49,25 @@ class ChannelService {
 
   async leaveChannel(channelId: string): Promise<void> {
     await api.delete(`/channels/${channelId}/members/me`);
+  }
+
+  /** Not implemented by the live backend yet — see docs/BACKEND_REQUIREMENTS.md. */
+  async updateChannel(
+    channelId: string,
+    payload: Partial<Pick<CreateChannelRequest, "name" | "description" | "is_private">>
+  ): Promise<ChannelResponse> {
+    const { data } = await api.patch<ChannelResponse>(`/channels/${channelId}`, payload);
+    return data;
+  }
+
+  /**
+   * Get-or-create: returns the channel's existing invite link if one is
+   * already active, otherwise creates one. Not implemented by the live
+   * backend yet — see docs/BACKEND_REQUIREMENTS.md.
+   */
+  async createInviteLink(channelId: string): Promise<InviteLinkResponse> {
+    const { data } = await api.post<InviteLinkResponse>(`/channels/${channelId}/invite-link`, {});
+    return data;
   }
 }
 

@@ -1,4 +1,5 @@
-import { Avatar, Box, Card, Divider, Stack, Typography } from "@mui/material";
+import { Avatar, Box, Button, Card, Divider, IconButton, Stack, Typography } from "@mui/material";
+import { ArrowBackRounded, EditRounded } from "@mui/icons-material";
 
 interface ProfileUser {
   username: string;
@@ -10,9 +11,11 @@ interface ProfileUser {
 
 interface ProfileViewProps {
   user: ProfileUser;
+  onBack?: () => void;
+  onEdit?: () => void;
 }
 
-export default function ProfileView({ user }: ProfileViewProps) {
+export default function ProfileView({ user, onBack, onEdit }: ProfileViewProps) {
   const avatarFallback = user.name.trim().charAt(0).toUpperCase() || "?";
 
   return (
@@ -27,6 +30,23 @@ export default function ProfileView({ user }: ProfileViewProps) {
         borderRadius: 3,
       }}
     >
+      {onBack || onEdit ? (
+        <Stack direction="row" spacing={1} sx={{ alignItems: "center", justifyContent: "space-between", mb: 2 }}>
+          {onBack ? (
+            <IconButton aria-label="Back" onClick={onBack}>
+              <ArrowBackRounded />
+            </IconButton>
+          ) : (
+            <Box />
+          )}
+          {onEdit ? (
+            <Button variant="outlined" startIcon={<EditRounded />} onClick={onEdit}>
+              Edit profile
+            </Button>
+          ) : null}
+        </Stack>
+      ) : null}
+
       <Stack spacing={1} sx={{ alignItems: "center", textAlign: "center" }}>
         <Avatar
           src={user.avatar_url || undefined}

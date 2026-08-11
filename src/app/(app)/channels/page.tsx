@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
@@ -22,6 +22,7 @@ import GroupRounded from "@mui/icons-material/GroupRounded";
 import KeyboardDoubleArrowDownRounded from "@mui/icons-material/KeyboardDoubleArrowDownRounded";
 import ScheduleSendRounded from "@mui/icons-material/ScheduleSendRounded";
 import SettingsRounded from "@mui/icons-material/SettingsRounded";
+import TravelExploreRounded from "@mui/icons-material/TravelExploreRounded";
 import { observer } from "mobx-react-lite";
 
 import type { Message, MessageAttachment, User } from "@/lib/types";
@@ -32,10 +33,12 @@ import { ApiError } from "@/lib/api/api";
 import { usersApi } from "@/lib/api/users";
 import { chatWs } from "@/lib/api/chat";
 import { apiMessageToMessage } from "@/lib/chat/mappers";
+import { mapGlobalSearchResults } from "@/lib/chat/globalSearch";
 import { chatSurfaces } from "@/lib/theme/theme";
 
 import authStore from "@/stores/AuthStore";
 import channelStore from "@/stores/ChannelStore";
+import groupStore from "@/stores/GroupStore";
 import type { Channel } from "@/types/channel";
 
 import { ChatHeader } from "@/components/chat/ChatHeader";
@@ -65,6 +68,7 @@ function mergeMessage(list: Message[], incoming: Message): Message[] {
 
 function ChannelsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const currentUser = authStore.user;
 
   const [activeChannelId, setActiveChannelId] = useState<string | undefined>(undefined);
@@ -82,6 +86,7 @@ function ChannelsPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [membersOpen, setMembersOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
 
   const [avatarByUserId, setAvatarByUserId] = useState<Record<string, string>>({});
   const [toast, setToast] = useState<{ message: string; severity: "error" | "success" } | null>(null);
@@ -184,16 +189,41 @@ function ChannelsPage() {
       }
     }
 
+    // Not emitted by the live backend yet — see docs/BACKEND_REQUIREMENTS.md.
+    // Handles both "I was removed" (evict + kick out of the conversation if
+    // it's open) and "someone else was removed while I'm looking at this
+    // channel's member list" (just drop them from the loaded list).
+    function handleChannelMemberRemoved(data: { channel_id: string; user_id: string }) {
+      const me = currentUserIdRef.current;
+      if (!me) return;
+
+      if (data.user_id === me) {
+        channelStore.evictChannel(data.channel_id);
+        chatWs.unsubscribeFromRoom({ type: "channel", target_id: data.channel_id });
+        if (activeChannelIdRef.current === data.channel_id) {
+          setActiveChannelId(undefined);
+          setToast({ message: "You were removed from this channel.", severity: "error" });
+        }
+        return;
+      }
+
+      if (data.channel_id === activeChannelIdRef.current) {
+        channelStore.removeMemberLocally(data.user_id);
+      }
+    }
+
     chatWs.on("message.new", handleMessageNew);
     chatWs.on("message.updated", handleMessageUpdated);
     chatWs.on("message.deleted", handleMessageDeleted);
     chatWs.on("typing", handleTyping);
+    chatWs.on("channel.member_removed", handleChannelMemberRemoved);
 
     return () => {
       chatWs.off("message.new", handleMessageNew);
       chatWs.off("message.updated", handleMessageUpdated);
       chatWs.off("message.deleted", handleMessageDeleted);
       chatWs.off("typing", handleTyping);
+      chatWs.off("channel.member_removed", handleChannelMemberRemoved);
       chatWs.disconnect();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -414,6 +444,14 @@ function ChannelsPage() {
 
   async function revealSearchResult(result: MessageSearchResultItem) {
     setSearchOpen(false);
+    setGlobalSearchOpen(false);
+
+    if (result.otherUserId !== activeChannelIdRef.current) {
+      pendingHighlightRef.current = result.id;
+      setActiveChannelId(result.otherUserId);
+      return;
+    }
+
     if (messages.some((m) => m.id === result.id)) {
       setHighlightMessageId(result.id);
       return;
@@ -448,6 +486,37 @@ function ChannelsPage() {
     }
   }
 
+  /** Cross-scope global search / cross-page navigation lands here (e.g. a link like /channels?open=<id>&highlight=<messageId>). */
+  const handleGlobalSearchResult = useCallback(
+    (result: MessageSearchResultItem) => {
+      if (result.scope && result.scope !== "channel") {
+        setGlobalSearchOpen(false);
+        router.push(`/${result.scope === "direct" ? "dm" : "groups"}?open=${result.otherUserId}&highlight=${result.id}`);
+        return;
+      }
+      revealSearchResult(result);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [router, activeChannelId, messages],
+  );
+
+  // ---- consume a cross-page "open this channel" link once, then strip the query string ----
+  const consumedNavParamsRef = useRef(false);
+  useEffect(() => {
+    if (consumedNavParamsRef.current) return;
+    const openId = searchParams.get("open");
+    if (!openId) return;
+    consumedNavParamsRef.current = true;
+    const highlightId = searchParams.get("highlight") ?? "";
+    pendingHighlightRef.current = highlightId || null;
+    // Synchronizing view state to an incoming navigation link (external to
+    // React) — a legitimate effect, not state derivable from render.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setActiveChannelId(openId);
+    router.replace("/channels", { scroll: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
   const isConversationOpen = Boolean(activeChannelId);
 
   if (!currentUser) {
@@ -475,16 +544,30 @@ function ChannelsPage() {
         }}
       >
         <Stack direction="row" spacing={1} sx={{ alignItems: "center", px: 2, pt: 2, pb: 1.5 }}>
-          <Avatar
-            src={currentUser.avatar_url || undefined}
-            slotProps={{ img: { loading: "lazy", decoding: "async" } }}
-            sx={{ width: 32, height: 32, fontSize: 13 }}
-          >
-            {currentUser.name.charAt(0).toUpperCase()}
-          </Avatar>
+          <Tooltip title="Your profile">
+            <IconButton
+              size="small"
+              onClick={() => router.push("/profile")}
+              aria-label="Open your profile"
+              sx={{ p: 0 }}
+            >
+              <Avatar
+                src={currentUser.avatar_url || undefined}
+                slotProps={{ img: { loading: "lazy", decoding: "async" } }}
+                sx={{ width: 32, height: 32, fontSize: 13 }}
+              >
+                {currentUser.name.charAt(0).toUpperCase()}
+              </Avatar>
+            </IconButton>
+          </Tooltip>
           <Typography variant="subtitle1" sx={{ fontWeight: 700, flex: 1 }} noWrap>
             Channels
           </Typography>
+          <Tooltip title="Search all messages">
+            <IconButton size="small" onClick={() => setGlobalSearchOpen(true)} aria-label="Search all messages">
+              <TravelExploreRounded fontSize="small" />
+            </IconButton>
+          </Tooltip>
           <Tooltip title="Scheduled messages">
             <IconButton size="small" onClick={() => router.push("/scheduled")} aria-label="Scheduled messages">
               <ScheduleSendRounded fontSize="small" />
@@ -648,6 +731,20 @@ function ChannelsPage() {
         }}
       />
 
+      <SearchOverlay
+        open={globalSearchOpen}
+        onClose={() => setGlobalSearchOpen(false)}
+        title="All conversations"
+        placeholder="Search across your DMs, groups, and channels"
+        showParticipant
+        onSearch={async (query) => {
+          const res = await messagesApi.searchGlobal(query);
+          if (groupStore.myGroups.length === 0) groupStore.loadMyGroups();
+          return mapGlobalSearchResults(res.data, currentUser.id);
+        }}
+        onSelectResult={handleGlobalSearchResult}
+      />
+
       <Snackbar open={Boolean(toast)} autoHideDuration={4000} onClose={() => setToast(null)}>
         {toast ? (
           <Alert severity={toast.severity} onClose={() => setToast(null)} variant="filled">
@@ -659,4 +756,12 @@ function ChannelsPage() {
   );
 }
 
-export default observer(ChannelsPage);
+const ObservedChannelsPage = observer(ChannelsPage);
+
+export default function ChannelsPageRoute() {
+  return (
+    <Suspense fallback={null}>
+      <ObservedChannelsPage />
+    </Suspense>
+  );
+}

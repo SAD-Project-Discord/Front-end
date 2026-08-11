@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
@@ -35,6 +35,8 @@ import MoreVertRounded from "@mui/icons-material/MoreVertRounded";
 import InfoOutlined from "@mui/icons-material/InfoOutlined";
 import LogoutRounded from "@mui/icons-material/LogoutRounded";
 import DeleteOutlineRounded from "@mui/icons-material/DeleteOutlineRounded";
+import TravelExploreRounded from "@mui/icons-material/TravelExploreRounded";
+import PublicRounded from "@mui/icons-material/PublicRounded";
 import { observer } from "mobx-react-lite";
 
 import type { Message, MessageAttachment, User } from "@/lib/types";
@@ -45,11 +47,13 @@ import { ApiError } from "@/lib/api/api";
 import { usersApi } from "@/lib/api/users";
 import { chatWs } from "@/lib/api/chat";
 import { apiMessageToMessage } from "@/lib/chat/mappers";
+import { mapGlobalSearchResults } from "@/lib/chat/globalSearch";
 import { chatSurfaces } from "@/lib/theme/theme";
 
 import authStore from "@/stores/AuthStore";
 import groupStore from "@/stores/GroupStore";
-import type { Group } from "@/types/group";
+import channelStore from "@/stores/ChannelStore";
+import type { Group, GroupInvitationInfo } from "@/types/group";
 
 import { ChatHeader } from "@/components/chat/ChatHeader";
 import { ChatInput } from "@/components/chat/ChatInput";
@@ -57,6 +61,8 @@ import { MessageList } from "@/components/chat/MessageList";
 import { SearchOverlay, type MessageSearchResultItem } from "@/components/chat/SearchOverlay";
 import CreateGroupModal from "@/components/group/CreateGroupModal";
 import GroupSettingsModal from "@/components/group/GroupSettingsModal";
+import GroupMembersDialog from "@/components/group/GroupMembersDialog";
+import DiscoverGroupsDialog from "@/components/group/DiscoverGroupsDialog";
 
 const PAGE_SIZE = 30;
 const TYPING_STOP_DELAY_MS = 2000;
@@ -78,6 +84,7 @@ function mergeMessage(list: Message[], incoming: Message): Message[] {
 
 function GroupsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const currentUser = authStore.user;
 
   const [activeGroupId, setActiveGroupId] = useState<string | undefined>(undefined);
@@ -99,6 +106,8 @@ function GroupsPage() {
   const [leaveActionWorking, setLeaveActionWorking] = useState(false);
   const [invitesAnchor, setInvitesAnchor] = useState<HTMLElement | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
+  const [discoverOpen, setDiscoverOpen] = useState(false);
 
   const [avatarByUserId, setAvatarByUserId] = useState<Record<string, string>>({});
   const [toast, setToast] = useState<{ message: string; severity: "error" | "success" } | null>(null);
@@ -205,16 +214,49 @@ function GroupsPage() {
       }
     }
 
+    // Not emitted by the live backend yet — see docs/BACKEND_REQUIREMENTS.md.
+    // Handles both "I was removed" (evict + kick out of the conversation if
+    // it's open) and "someone else was removed while I'm looking at this
+    // group's member list" (just drop them from the loaded list).
+    function handleGroupMemberRemoved(data: { group_id: string; user_id: string }) {
+      const me = currentUserIdRef.current;
+      if (!me) return;
+
+      if (data.user_id === me) {
+        groupStore.evictGroup(data.group_id);
+        chatWs.unsubscribeFromRoom({ type: "group", target_id: data.group_id });
+        if (activeGroupIdRef.current === data.group_id) {
+          setActiveGroupId(undefined);
+          setToast({ message: "You were removed from this group.", severity: "error" });
+        }
+        return;
+      }
+
+      if (data.group_id === activeGroupIdRef.current) {
+        groupStore.removeMemberLocally(data.user_id);
+      }
+    }
+
+    // Not emitted by the live backend yet — see docs/BACKEND_REQUIREMENTS.md.
+    function handleInvitationReceived(data: GroupInvitationInfo) {
+      if (data.invitee_id !== currentUserIdRef.current) return;
+      groupStore.addInvitationLocally(data);
+    }
+
     chatWs.on("message.new", handleMessageNew);
     chatWs.on("message.updated", handleMessageUpdated);
     chatWs.on("message.deleted", handleMessageDeleted);
     chatWs.on("typing", handleTyping);
+    chatWs.on("group.member_removed", handleGroupMemberRemoved);
+    chatWs.on("group.invitation.received", handleInvitationReceived);
 
     return () => {
       chatWs.off("message.new", handleMessageNew);
       chatWs.off("message.updated", handleMessageUpdated);
       chatWs.off("message.deleted", handleMessageDeleted);
       chatWs.off("typing", handleTyping);
+      chatWs.off("group.member_removed", handleGroupMemberRemoved);
+      chatWs.off("group.invitation.received", handleInvitationReceived);
       chatWs.disconnect();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -467,6 +509,14 @@ function GroupsPage() {
 
   async function revealSearchResult(result: MessageSearchResultItem) {
     setSearchOpen(false);
+    setGlobalSearchOpen(false);
+
+    if (result.otherUserId !== activeGroupIdRef.current) {
+      pendingHighlightRef.current = result.id;
+      setActiveGroupId(result.otherUserId);
+      return;
+    }
+
     if (messages.some((m) => m.id === result.id)) {
       setHighlightMessageId(result.id);
       return;
@@ -505,6 +555,37 @@ function GroupsPage() {
     await groupStore.respondToGroupInvitation(invitationId, action);
   }
 
+  /** Cross-scope global search / cross-page navigation lands here (e.g. a link like /groups?open=<id>&highlight=<messageId>). */
+  const handleGlobalSearchResult = useCallback(
+    (result: MessageSearchResultItem) => {
+      if (result.scope && result.scope !== "group") {
+        setGlobalSearchOpen(false);
+        router.push(`/${result.scope === "direct" ? "dm" : "channels"}?open=${result.otherUserId}&highlight=${result.id}`);
+        return;
+      }
+      revealSearchResult(result);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [router, activeGroupId, messages],
+  );
+
+  // ---- consume a cross-page "open this group" link once, then strip the query string ----
+  const consumedNavParamsRef = useRef(false);
+  useEffect(() => {
+    if (consumedNavParamsRef.current) return;
+    const openId = searchParams.get("open");
+    if (!openId) return;
+    consumedNavParamsRef.current = true;
+    const highlightId = searchParams.get("highlight") ?? "";
+    pendingHighlightRef.current = highlightId || null;
+    // Synchronizing view state to an incoming navigation link (external to
+    // React) — a legitimate effect, not state derivable from render.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setActiveGroupId(openId);
+    router.replace("/groups", { scroll: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
   const isConversationOpen = Boolean(activeGroupId);
   const pendingInviteCount = groupStore.myInvitations.length;
 
@@ -533,13 +614,22 @@ function GroupsPage() {
         }}
       >
         <Stack direction="row" spacing={1} sx={{ alignItems: "center", px: 2, pt: 2, pb: 1.5 }}>
-          <Avatar
-            src={currentUser.avatar_url || undefined}
-            slotProps={{ img: { loading: "lazy", decoding: "async" } }}
-            sx={{ width: 32, height: 32, fontSize: 13 }}
-          >
-            {currentUser.name.charAt(0).toUpperCase()}
-          </Avatar>
+          <Tooltip title="Your profile">
+            <IconButton
+              size="small"
+              onClick={() => router.push("/profile")}
+              aria-label="Open your profile"
+              sx={{ p: 0 }}
+            >
+              <Avatar
+                src={currentUser.avatar_url || undefined}
+                slotProps={{ img: { loading: "lazy", decoding: "async" } }}
+                sx={{ width: 32, height: 32, fontSize: 13 }}
+              >
+                {currentUser.name.charAt(0).toUpperCase()}
+              </Avatar>
+            </IconButton>
+          </Tooltip>
           <Typography variant="subtitle1" sx={{ fontWeight: 700, flex: 1 }} noWrap>
             Groups
           </Typography>
@@ -548,6 +638,16 @@ function GroupsPage() {
               <Badge badgeContent={pendingInviteCount} color="primary">
                 <NotificationsRounded fontSize="small" />
               </Badge>
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Search all messages">
+            <IconButton size="small" onClick={() => setGlobalSearchOpen(true)} aria-label="Search all messages">
+              <TravelExploreRounded fontSize="small" />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Discover public groups">
+            <IconButton size="small" onClick={() => setDiscoverOpen(true)} aria-label="Discover public groups">
+              <PublicRounded fontSize="small" />
             </IconButton>
           </Tooltip>
           <Tooltip title="Scheduled messages">
@@ -763,6 +863,26 @@ function GroupsPage() {
         }}
       />
 
+      <DiscoverGroupsDialog
+        open={discoverOpen}
+        onClose={() => setDiscoverOpen(false)}
+        onJoined={(group) => setActiveGroupId(group.id)}
+      />
+
+      <SearchOverlay
+        open={globalSearchOpen}
+        onClose={() => setGlobalSearchOpen(false)}
+        title="All conversations"
+        placeholder="Search across your DMs, groups, and channels"
+        showParticipant
+        onSearch={async (query) => {
+          const res = await messagesApi.searchGlobal(query);
+          if (channelStore.myChannels.length === 0) channelStore.loadMyChannels();
+          return mapGlobalSearchResults(res.data, currentUser.id);
+        }}
+        onSelectResult={handleGlobalSearchResult}
+      />
+
       <Popover
         open={Boolean(invitesAnchor)}
         anchorEl={invitesAnchor}
@@ -813,4 +933,12 @@ function GroupsPage() {
   );
 }
 
-export default observer(GroupsPage);
+const ObservedGroupsPage = observer(GroupsPage);
+
+export default function GroupsPageRoute() {
+  return (
+    <Suspense fallback={null}>
+      <ObservedGroupsPage />
+    </Suspense>
+  );
+}

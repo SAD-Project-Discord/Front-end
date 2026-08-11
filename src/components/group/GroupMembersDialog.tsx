@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Alert,
   Avatar,
@@ -22,9 +22,12 @@ import {
   Typography,
 } from "@mui/material";
 import { Close, PersonAddAlt, PersonRemove } from "@mui/icons-material";
+import Switch from "@mui/material/Switch";
+import FormControlLabel from "@mui/material/FormControlLabel";
 import { observer } from "mobx-react-lite";
 import groupStore from "@/stores/GroupStore";
 import AddMembersModal from "@/components/members/AddMembersModal";
+import { InviteLinkSection } from "@/components/members/InviteLinkSection";
 import type { GroupInfo } from "@/types/group";
 
 export interface GroupMembersDialogProps {
@@ -39,13 +42,24 @@ function GroupMembersDialog({ open, onClose, group, currentUserId, onLeftOrDelet
   const [inviteOpen, setInviteOpen] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [working, setWorking] = useState(false);
+  const [savingPrivacy, setSavingPrivacy] = useState(false);
 
   const isOwner = groupStore.roleForMember(group.id, currentUserId) === "owner";
+
+  useEffect(() => {
+    if (open) groupStore.clearInviteLink();
+  }, [open, group.id]);
 
   async function handleRemove(userId: string) {
     setWorking(true);
     await groupStore.removeGroupMember(group.id, userId);
     setWorking(false);
+  }
+
+  async function handleTogglePrivacy() {
+    setSavingPrivacy(true);
+    await groupStore.updateGroupInfo(group.id, { is_private: !(group.is_private ?? true) });
+    setSavingPrivacy(false);
   }
 
   async function handleLeaveOrDelete() {
@@ -136,6 +150,37 @@ function GroupMembersDialog({ open, onClose, group, currentUserId, onLeftOrDelet
         >
           Invite people
         </Button>
+
+        {isOwner ? (
+          <>
+            <Divider sx={{ my: 2 }} />
+            <Typography variant="subtitle2" sx={{ mb: 1.5 }}>
+              Group settings
+            </Typography>
+            <FormControlLabel
+              sx={{ ml: 0, width: "100%", justifyContent: "space-between", mb: 2 }}
+              control={<Switch checked={group.is_private ?? true} onChange={handleTogglePrivacy} disabled={savingPrivacy} />}
+              labelPlacement="start"
+              label={
+                <Box>
+                  <Typography variant="body2" sx={{ color: "text.primary", fontWeight: 500 }}>
+                    Private group
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                    {group.is_private ?? true ? "Only invited members can join." : "Anyone can find and join this group."}
+                  </Typography>
+                </Box>
+              }
+            />
+            <InviteLinkSection
+              targetName={group.name}
+              link={groupStore.inviteLink}
+              loading={groupStore.inviteLinkLoading}
+              error={groupStore.inviteLinkError}
+              onGenerate={() => groupStore.getOrCreateInviteLink(group.id)}
+            />
+          </>
+        ) : null}
 
         <Divider sx={{ my: 2 }} />
 

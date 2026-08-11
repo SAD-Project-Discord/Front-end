@@ -29,6 +29,14 @@ class ChannelStore {
 
   membersActionError: string | null = null;
 
+  // Invite links call a backend endpoint that doesn't exist yet — see
+  // docs/BACKEND_REQUIREMENTS.md.
+  inviteLink: string | null = null;
+
+  inviteLinkLoading = false;
+
+  inviteLinkError: string | null = null;
+
   constructor() {
     makeAutoObservable(this);
   }
@@ -178,6 +186,61 @@ class ChannelStore {
       });
       return false;
     }
+  }
+
+  /** Evicts a channel the current user is no longer a member of (e.g. removed by the owner). */
+  evictChannel(channelId: string) {
+    this.myChannels = this.myChannels.filter((c) => c.id !== channelId);
+  }
+
+  /** Drops a member from the currently loaded member list without hitting the API (e.g. a live WS event about someone else). */
+  removeMemberLocally(userId: string) {
+    this.channelMembers = this.channelMembers.filter((m) => m.user_id !== userId);
+  }
+
+  async updateChannelInfo(
+    channelId: string,
+    payload: Partial<Pick<CreateChannelRequest, "name" | "description" | "is_private">>,
+  ): Promise<boolean> {
+    try {
+      const response = await channelService.updateChannel(channelId, payload);
+      runInAction(() => {
+        this.myChannels = this.myChannels.map((c) => (c.id === channelId ? response.data : c));
+      });
+      return true;
+    } catch (error: unknown) {
+      runInAction(() => {
+        this.channelsError = getErrorMessage(error, "Could not update channel.");
+      });
+      return false;
+    }
+  }
+
+  async getOrCreateInviteLink(channelId: string): Promise<string | null> {
+    this.inviteLinkLoading = true;
+    this.inviteLinkError = null;
+
+    try {
+      const response = await channelService.createInviteLink(channelId);
+      runInAction(() => {
+        this.inviteLink = response.data.url;
+      });
+      return response.data.url;
+    } catch (error: unknown) {
+      runInAction(() => {
+        this.inviteLinkError = getErrorMessage(error, "Could not create an invite link.");
+      });
+      return null;
+    } finally {
+      runInAction(() => {
+        this.inviteLinkLoading = false;
+      });
+    }
+  }
+
+  clearInviteLink() {
+    this.inviteLink = null;
+    this.inviteLinkError = null;
   }
 }
 
