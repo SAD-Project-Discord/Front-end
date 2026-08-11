@@ -8,8 +8,10 @@ import {
   Dialog,
   DialogContent,
   DialogTitle,
+  FormControlLabel,
   IconButton,
   Stack,
+  Switch,
   Typography,
 } from "@mui/material";
 import { Tag, Subject, Close, ArrowForward } from "@mui/icons-material";
@@ -27,11 +29,13 @@ interface CreateChannelModalProps {
 interface CreateChannelFormValues {
   name: string;
   description: string;
+  isPrivate: boolean;
 }
 
 const initialValues: CreateChannelFormValues = {
   name: "",
   description: "",
+  isPrivate: true,
 };
 
 function CreateChannelModal({ open, onClose, onCreated }: CreateChannelModalProps) {
@@ -41,7 +45,8 @@ function CreateChannelModal({ open, onClose, onCreated }: CreateChannelModalProp
   const handleChange =
     (field: keyof CreateChannelFormValues) =>
     (event: ChangeEvent<HTMLInputElement>) => {
-      setValues((prev) => ({ ...prev, [field]: event.target.value }));
+      const value = field === "isPrivate" ? event.target.checked : event.target.value;
+      setValues((prev) => ({ ...prev, [field]: value }));
       if (formError) {
         setFormError(null);
       }
@@ -87,6 +92,7 @@ function CreateChannelModal({ open, onClose, onCreated }: CreateChannelModalProp
     const channel = await channelStore.createChannel({
       name: values.name.trim(),
       description: description || undefined,
+      is_private: values.isPrivate,
     });
 
     if (channel) {
@@ -152,6 +158,22 @@ function CreateChannelModal({ open, onClose, onCreated }: CreateChannelModalProp
             onChange={handleChange("description")}
             multiline
             minRows={2}
+          />
+
+          <FormControlLabel
+            sx={{ mt: 0.5, ml: 0, width: "100%", justifyContent: "space-between" }}
+            control={<Switch checked={values.isPrivate} onChange={handleChange("isPrivate")} />}
+            labelPlacement="start"
+            label={
+              <Box>
+                <Typography variant="body2" sx={{ color: "text.primary", fontWeight: 500 }}>
+                  Private channel
+                </Typography>
+                <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                  Only added members can join.
+                </Typography>
+              </Box>
+            }
           />
 
           {(formError || channelStore.channelsError) ? (

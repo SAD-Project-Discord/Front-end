@@ -13,6 +13,7 @@ import type {
   GroupMembersResponse,
   GroupResponse,
 } from "@/types/group";
+import type { InviteLinkResponse } from "@/types/invite";
 
 class GroupService {
   async createGroup(payload: CreateGroupRequest): Promise<GroupResponse> {
@@ -113,6 +114,30 @@ class GroupService {
       `/groups/invitations/${invitationId}/respond`,
       { action }
     );
+    return data;
+  }
+
+  /** Not implemented by the live backend yet — see docs/BACKEND_REQUIREMENTS.md. */
+  async listPublicGroups(query: string): Promise<GroupInfosResponse> {
+    const { data } = await api.get<GroupInfosResponse>(
+      `/groups/public/?q=${encodeURIComponent(query)}`
+    );
+    return data;
+  }
+
+  /** Not implemented by the live backend yet — see docs/BACKEND_REQUIREMENTS.md. */
+  async joinGroup(groupId: string): Promise<GroupInfoResponse> {
+    const { data } = await api.post<GroupInfoResponse>(`/groups/${groupId}/join`, {});
+    return data;
+  }
+
+  /**
+   * Get-or-create: returns the group's existing invite link if one is
+   * already active, otherwise creates one. Not implemented by the live
+   * backend yet — see docs/BACKEND_REQUIREMENTS.md.
+   */
+  async createInviteLink(groupId: string): Promise<InviteLinkResponse> {
+    const { data } = await api.post<InviteLinkResponse>(`/groups/${groupId}/invite-link`, {});
     return data;
   }
 }
