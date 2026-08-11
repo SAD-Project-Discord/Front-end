@@ -1,7 +1,7 @@
 import { makeAutoObservable, runInAction } from "mobx";
 
 import channelService from "@/services/channel.service";
-import type { Channel, ChannelMember, CreateChannelRequest } from "@/types/channel";
+import type { Channel, ChannelMember, CreateChannelRequest, UpdateChannelRequest } from "@/types/channel";
 
 function getErrorMessage(error: unknown, fallback: string): string {
   const responseMessage =
@@ -29,8 +29,10 @@ class ChannelStore {
 
   membersActionError: string | null = null;
 
-  // Invite links call a backend endpoint that doesn't exist yet — see
-  // docs/BACKEND_REQUIREMENTS.md.
+  isSavingChannel = false;
+
+  channelSettingsError: string | null = null;
+
   inviteLink: string | null = null;
 
   inviteLinkLoading = false;
@@ -43,6 +45,14 @@ class ChannelStore {
 
   setChannelsError(message: string | null) {
     this.channelsError = message;
+  }
+
+  clearChannelSettingsError() {
+    this.channelSettingsError = null;
+  }
+
+  clearChannelMemberActionError() {
+    this.membersActionError = null;
   }
 
   get myChannelMemberIds(): string[] {
@@ -200,19 +210,26 @@ class ChannelStore {
 
   async updateChannelInfo(
     channelId: string,
-    payload: Partial<Pick<CreateChannelRequest, "name" | "description" | "is_private">>,
-  ): Promise<boolean> {
+    payload: UpdateChannelRequest,
+  ): Promise<Channel | null> {
+    this.isSavingChannel = true;
+    this.channelSettingsError = null;
+
     try {
       const response = await channelService.updateChannel(channelId, payload);
       runInAction(() => {
         this.myChannels = this.myChannels.map((c) => (c.id === channelId ? response.data : c));
       });
-      return true;
+      return response.data;
     } catch (error: unknown) {
       runInAction(() => {
-        this.channelsError = getErrorMessage(error, "Could not update channel.");
+        this.channelSettingsError = getErrorMessage(error, "Could not update channel.");
       });
-      return false;
+      return null;
+    } finally {
+      runInAction(() => {
+        this.isSavingChannel = false;
+      });
     }
   }
 
@@ -223,9 +240,12 @@ class ChannelStore {
     try {
       const response = await channelService.createInviteLink(channelId);
       runInAction(() => {
-        this.inviteLink = response.data.url;
+        this.inviteLink =
+          typeof window === "undefined"
+            ? response.data.url
+            : `${window.location.origin}/invite/${encodeURIComponent(response.data.token)}`;
       });
-      return response.data.url;
+      return this.inviteLink;
     } catch (error: unknown) {
       runInAction(() => {
         this.inviteLinkError = getErrorMessage(error, "Could not create an invite link.");
