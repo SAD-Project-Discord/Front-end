@@ -377,17 +377,7 @@ function GroupSettingsModal({ open, onClose, groupId, onUpdated, onDeleted }: Gr
                                 secondary={displayUsername}
                               />
                               <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, ml: 2 }}>
-                                {canModify ? (
-                                  <Button
-                                    size="small"
-                                    variant="outlined"
-                                    onClick={() => handleToggleRole(member)}
-                                    disabled={isWorking}
-                                    startIcon={member.role === "admin" ? <ArrowDownward fontSize="small" /> : <ArrowUpward fontSize="small" />}
-                                  >
-                                    {member.role === "admin" ? "Demote" : "Promote"}
-                                  </Button>
-                                ) : null}
+                                {/* Promote/Demote button intentionally removed for now */}
                                 {canModify ? (
                                   <Tooltip title="Remove member">
                                     <IconButton
