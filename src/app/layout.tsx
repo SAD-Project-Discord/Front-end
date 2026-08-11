@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import ThemeRegistry from "@/lib/theme/ThemeRegistry";
 import "./globals.css";
-
-import ThemeRegistry from "@/theme/ThemeRegistry"; // adjust the path if needed
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -28,11 +27,10 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col">
-        <ThemeRegistry>
-          {children}
-        </ThemeRegistry>
+        <ThemeRegistry>{children}</ThemeRegistry>
       </body>
     </html>
   );

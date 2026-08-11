@@ -28,7 +28,7 @@ import IconTextField from "@/components/auth/IconTextField";
 import contactStore from "@/stores/ContactStore";
 import userStore from "@/stores/UserStore";
 import authStore from "@/stores/AuthStore";
-import type { User } from "@/types/auth";
+import type { PublicUserProfile } from "@/types/user";
 
 interface AddMembersModalProps {
   open: boolean;
@@ -47,7 +47,7 @@ interface AddMembersModalProps {
 
 const SEARCH_DEBOUNCE_MS = 300;
 
-function getInitials(user: User): string {
+function getInitials(user: PublicUserProfile): string {
   const source = user.name || user.username || "";
   return source.trim().charAt(0).toUpperCase();
 }
@@ -64,7 +64,7 @@ function AddMembersModal({
   submitError,
 }: AddMembersModalProps) {
   const [query, setQuery] = useState("");
-  const [selected, setSelected] = useState<Map<string, User>>(new Map());
+  const [selected, setSelected] = useState<Map<string, PublicUserProfile>>(new Map());
   const [localSubmitError, setLocalSubmitError] = useState<string | null>(null);
   const [localSubmitting, setLocalSubmitting] = useState(false);
 
@@ -92,13 +92,13 @@ function AddMembersModal({
   const existingSet = new Set(existingMemberIds);
   const selfId = authStore.user?.id;
 
-  const users = (searching ? userStore.searchResults : contactStore.contacts.map((c) => c.user))
+  const users: PublicUserProfile[] = (searching ? userStore.searchResults : contactStore.contacts)
     .filter((user) => user.id !== selfId);
 
   const listLoading = searching ? userStore.isSearching : contactStore.isLoading;
   const loadError = searching ? userStore.error : contactStore.error;
 
-  const toggle = (user: User) => {
+  const toggle = (user: PublicUserProfile) => {
     if (existingSet.has(user.id)) return;
     setSelected((prev) => {
       const next = new Map(prev);

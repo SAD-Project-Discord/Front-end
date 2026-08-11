@@ -1,5 +1,5 @@
 import api from "@/lib/axios";
-import type { UsersSearchResponse } from "@/types/user";
+import type { PublicUserProfile, UsersSearchResponse } from "@/types/user";
 import type { User } from "@/types/auth";
 
 interface ApiResponse<T> {
@@ -17,6 +17,13 @@ class UserService {
 
   async getMyProfile(): Promise<User> {
     const { data } = await api.get<ApiResponse<User>>("/users/me");
+    return data.data;
+  }
+
+  async getPublicProfile(userId: string): Promise<PublicUserProfile> {
+    const { data } = await api.get<ApiResponse<PublicUserProfile>>(
+      `/users/${encodeURIComponent(userId)}`,
+    );
     return data.data;
   }
 }

@@ -8,13 +8,11 @@ import {
   Dialog,
   DialogContent,
   DialogTitle,
-  FormControlLabel,
   IconButton,
   Stack,
-  Switch,
   Typography,
 } from "@mui/material";
-import { Public, Subject, Close, ArrowForward } from "@mui/icons-material";
+import { Tag, Subject, Close, ArrowForward } from "@mui/icons-material";
 import { observer } from "mobx-react-lite";
 import IconTextField from "@/components/auth/IconTextField";
 import channelStore from "@/stores/ChannelStore";
@@ -29,13 +27,11 @@ interface CreateChannelModalProps {
 interface CreateChannelFormValues {
   name: string;
   description: string;
-  isPrivate: boolean;
 }
 
 const initialValues: CreateChannelFormValues = {
   name: "",
   description: "",
-  isPrivate: false,
 };
 
 function CreateChannelModal({ open, onClose, onCreated }: CreateChannelModalProps) {
@@ -45,9 +41,7 @@ function CreateChannelModal({ open, onClose, onCreated }: CreateChannelModalProp
   const handleChange =
     (field: keyof CreateChannelFormValues) =>
     (event: ChangeEvent<HTMLInputElement>) => {
-      const value =
-        field === "isPrivate" ? event.target.checked : event.target.value;
-      setValues((prev) => ({ ...prev, [field]: value }));
+      setValues((prev) => ({ ...prev, [field]: event.target.value }));
       if (formError) {
         setFormError(null);
       }
@@ -56,7 +50,7 @@ function CreateChannelModal({ open, onClose, onCreated }: CreateChannelModalProp
   const resetAndClose = () => {
     setValues(initialValues);
     setFormError(null);
-    channelStore.setError(null);
+    channelStore.setChannelsError(null);
     onClose();
   };
 
@@ -81,19 +75,18 @@ function CreateChannelModal({ open, onClose, onCreated }: CreateChannelModalProp
 
     if (validationError) {
       setFormError(validationError);
-      channelStore.setError(null);
+      channelStore.setChannelsError(null);
       return;
     }
 
     setFormError(null);
-    channelStore.setError(null);
+    channelStore.setChannelsError(null);
 
     const description = values.description.trim();
 
     const channel = await channelStore.createChannel({
       name: values.name.trim(),
       description: description || undefined,
-      is_private: values.isPrivate,
     });
 
     if (channel) {
@@ -105,7 +98,7 @@ function CreateChannelModal({ open, onClose, onCreated }: CreateChannelModalProp
   return (
     <Dialog
       open={open}
-      onClose={channelStore.isLoading ? undefined : resetAndClose}
+      onClose={channelStore.isLoadingChannels ? undefined : resetAndClose}
       fullWidth
       maxWidth="xs"
       slotProps={{
@@ -124,13 +117,13 @@ function CreateChannelModal({ open, onClose, onCreated }: CreateChannelModalProp
               Create Channel
             </Typography>
             <Typography variant="body2" sx={{ mt: 0.5 }}>
-              Start a new channel for your conversation.
+              Start a new channel and add people later.
             </Typography>
           </Box>
           <IconButton
             aria-label="Close"
             onClick={resetAndClose}
-            disabled={channelStore.isLoading}
+            disabled={channelStore.isLoadingChannels}
             edge="end"
             size="small"
           >
@@ -143,8 +136,8 @@ function CreateChannelModal({ open, onClose, onCreated }: CreateChannelModalProp
         <Box component="form" onSubmit={handleSubmit} noValidate>
           <IconTextField
             label="Channel Name"
-            icon={Public}
-            placeholder="General"
+            icon={Tag}
+            placeholder="general"
             value={values.name}
             onChange={handleChange("name")}
             autoFocus
@@ -154,37 +147,16 @@ function CreateChannelModal({ open, onClose, onCreated }: CreateChannelModalProp
           <IconTextField
             label="Description"
             icon={Subject}
-            placeholder="What is this channel for?"
+            placeholder="What is this channel about?"
             value={values.description}
             onChange={handleChange("description")}
             multiline
             minRows={2}
           />
 
-          <FormControlLabel
-            sx={{ mt: 0.5, ml: 0, width: "100%", justifyContent: "space-between" }}
-            control={
-              <Switch
-                checked={values.isPrivate}
-                onChange={handleChange("isPrivate")}
-              />
-            }
-            labelPlacement="start"
-            label={
-              <Box>
-                <Typography variant="body2" sx={{ color: "text.primary", fontWeight: 500 }}>
-                  Private channel
-                </Typography>
-                <Typography variant="caption" sx={{ color: "text.secondary" }}>
-                  Only invited members can see this channel.
-                </Typography>
-              </Box>
-            }
-          />
-
-          {(formError || channelStore.error) ? (
+          {(formError || channelStore.channelsError) ? (
             <Alert severity="error" sx={{ mt: 2 }}>
-              {formError ?? channelStore.error}
+              {formError ?? channelStore.channelsError}
             </Alert>
           ) : null}
 
@@ -196,7 +168,7 @@ function CreateChannelModal({ open, onClose, onCreated }: CreateChannelModalProp
               size="large"
               fullWidth
               onClick={resetAndClose}
-              disabled={channelStore.isLoading}
+              disabled={channelStore.isLoadingChannels}
             >
               Cancel
             </Button>
@@ -206,10 +178,10 @@ function CreateChannelModal({ open, onClose, onCreated }: CreateChannelModalProp
               color="primary"
               size="large"
               fullWidth
-              disabled={channelStore.isLoading}
+              disabled={channelStore.isLoadingChannels}
               endIcon={<ArrowForward fontSize="small" />}
             >
-              {channelStore.isLoading ? "Creating..." : "Create Channel"}
+              {channelStore.isLoadingChannels ? "Creating..." : "Create Channel"}
             </Button>
           </Stack>
         </Box>

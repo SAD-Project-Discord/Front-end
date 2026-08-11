@@ -1,11 +1,12 @@
 import api from "@/lib/axios";
 
-import type { ContactStatus, ContactsResponse } from "@/types/contact";
+import type { ContactsResponse } from "@/types/contact";
 
 class ContactService {
-  async listContacts(status: ContactStatus = "accepted"): Promise<ContactsResponse> {
-    const { data } = await api.get<ContactsResponse>("/contacts", {
-      params: { status },
+  /** Users the current user has exchanged direct messages with. */
+  async listContacts(query?: string): Promise<ContactsResponse> {
+    const { data } = await api.get<ContactsResponse>("/users/contacts", {
+      params: query ? { q: query } : undefined,
     });
 
     return data;

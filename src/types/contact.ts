@@ -1,13 +1,4 @@
-import type { User } from "@/types/auth";
-
-export type ContactStatus = "pending" | "accepted" | "rejected";
-
-export interface Contact {
-  id: string;
-  user: User;
-  status: ContactStatus;
-  created_at: string;
-}
+import type { PublicUserProfile } from "@/types/user";
 
 export interface PaginationMeta {
   page: number;
@@ -16,8 +7,11 @@ export interface PaginationMeta {
   total_pages: number;
 }
 
+// The live endpoint (`GET /users/contacts`) returns the users the current
+// user has exchanged direct messages with, as a flat list — not a
+// friend-request/pending-accepted-rejected relationship model.
 export interface ContactsResponse {
   success: boolean;
-  data: Contact[];
+  data: PublicUserProfile[];
   meta?: PaginationMeta;
 }

@@ -1,0 +1,37 @@
+* [33m24ed09a[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mchannels[m[33m, [m[1;31morigin/channels[m[33m)[m Add TypeScript compiler
+* [33mc5df610[m added channels
+*   [33m44a131c[m[33m ([m[1;31morigin/main[m[33m, [m[1;32mmain[m[33m)[m Merge pull request #23 from SAD-Project-Discord/feature/dm-chat-ui
+[32m|[m[33m\[m  
+[32m|[m *   [33m504499d[m[33m ([m[1;31morigin/feature/dm-chat-ui[m[33m, [m[1;32mfeature/dm-chat-ui[m[33m)[m Merge remote-tracking branch 'origin/main' into feature/dm-chat-ui
+[32m|[m [34m|[m[32m\[m  
+[32m|[m [34m|[m[32m/[m  
+[32m|[m[32m/[m[34m|[m   
+* [34m|[m   [33m7f08c86[m Merge pull request #24 from SAD-Project-Discord/feat/issue-6-public-profile
+[36m|[m[1;31m\[m [34m\[m  
+[36m|[m * [34m|[m [33m9e3b3de[m[33m ([m[1;31morigin/feat/issue-6-public-profile[m[33m)[m feat: add public user profile view
+[36m|[m[36m/[m [34m/[m  
+[36m|[m * [33m62e9e2c[m fix: restore reverted teammate files, add group chat via additive-only API
+[36m|[m * [33mac6c70d[m group chat added
+[36m|[m *   [33m046bf96[m Merge remote-tracking branch 'origin/feature/dm-chat-ui' into feature/dm-chat-ui
+[36m|[m [1;32m|[m[1;33m\[m  
+[36m|[m [1;32m|[m * [33m983d9f8[m group chat added
+[36m|[m * [1;33m|[m [33m7157cb1[m group chat added
+[36m|[m [1;33m|[m[1;33m/[m  
+[36m|[m *   [33m7342ef8[m Merge remote-tracking branch 'origin/main' into feature/dm-chat-ui
+[36m|[m [1;34m|[m[36m\[m  
+[36m|[m [1;34m|[m[36m/[m  
+[36m|[m[36m/[m[1;34m|[m   
+[36m|[m *   [33m957f4a7[m Merge remote-tracking branch 'origin/feature/dm-chat-ui' into feature/dm-chat-ui
+[36m|[m [1;36m|[m[31m\[m  
+[36m|[m [1;36m|[m * [33mcf9d62e[m dm chat completed
+[36m|[m * [31m|[m [33m77e3af5[m dm chat completed
+[36m|[m [31m|[m[31m/[m  
+[36m|[m * [33m29b3f2d[m polishing
+[36m|[m * [33m7f4e4ab[m feat: add chat page with api
+[36m|[m * [33mf85bf03[m feat: add chat components
+[36m|[m [31m|[m * [33m87306b5[m[33m ([m[1;35mrefs/stash[m[33m)[m WIP on main: 2ff184a Merge pull request #22 from SAD-Project-Discord/feat/group-create-invite
+[36m|[m [31m|[m[36m/[m[33m|[m 
+[36m|[m[36m/[m[31m|[m [33m|[m 
+[36m|[m [31m|[m * [33m3829904[m index on main: 2ff184a Merge pull request #22 from SAD-Project-Discord/feat/group-create-invite
+[36m|[m [31m|[m[36m/[m  
+[36m|[m[36m/[m[31m|[m   
