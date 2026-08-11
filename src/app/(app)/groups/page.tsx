@@ -16,14 +16,25 @@ import List from "@mui/material/List";
 import ListItemButton from "@mui/material/ListItemButton";
 import ListItemAvatar from "@mui/material/ListItemAvatar";
 import ListItemText from "@mui/material/ListItemText";
+import ListItemIcon from "@mui/material/ListItemIcon";
+import Menu from "@mui/material/Menu";
+import MenuItem from "@mui/material/MenuItem";
 import Popover from "@mui/material/Popover";
 import CircularProgress from "@mui/material/CircularProgress";
+import Dialog from "@mui/material/Dialog";
+import DialogActions from "@mui/material/DialogActions";
+import DialogContent from "@mui/material/DialogContent";
+import DialogContentText from "@mui/material/DialogContentText";
+import DialogTitle from "@mui/material/DialogTitle";
 import GroupAddRounded from "@mui/icons-material/GroupAddRounded";
 import NotificationsRounded from "@mui/icons-material/NotificationsRounded";
-import GroupRounded from "@mui/icons-material/GroupRounded";
 import KeyboardDoubleArrowDownRounded from "@mui/icons-material/KeyboardDoubleArrowDownRounded";
 import ScheduleSendRounded from "@mui/icons-material/ScheduleSendRounded";
 import SettingsRounded from "@mui/icons-material/SettingsRounded";
+import MoreVertRounded from "@mui/icons-material/MoreVertRounded";
+import InfoOutlined from "@mui/icons-material/InfoOutlined";
+import LogoutRounded from "@mui/icons-material/LogoutRounded";
+import DeleteOutlineRounded from "@mui/icons-material/DeleteOutlineRounded";
 import TravelExploreRounded from "@mui/icons-material/TravelExploreRounded";
 import PublicRounded from "@mui/icons-material/PublicRounded";
 import { observer } from "mobx-react-lite";
@@ -49,7 +60,7 @@ import { ChatInput } from "@/components/chat/ChatInput";
 import { MessageList } from "@/components/chat/MessageList";
 import { SearchOverlay, type MessageSearchResultItem } from "@/components/chat/SearchOverlay";
 import CreateGroupModal from "@/components/group/CreateGroupModal";
-import GroupMembersDialog from "@/components/group/GroupMembersDialog";
+import GroupSettingsModal from "@/components/group/GroupSettingsModal";
 import DiscoverGroupsDialog from "@/components/group/DiscoverGroupsDialog";
 
 const PAGE_SIZE = 30;
@@ -88,7 +99,10 @@ function GroupsPage() {
   const [typingNames, setTypingNames] = useState<Map<string, string>>(new Map());
 
   const [createOpen, setCreateOpen] = useState(false);
-  const [membersOpen, setMembersOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
+  const [confirmLeaveOpen, setConfirmLeaveOpen] = useState(false);
+  const [leaveActionWorking, setLeaveActionWorking] = useState(false);
   const [invitesAnchor, setInvitesAnchor] = useState<HTMLElement | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
@@ -117,6 +131,9 @@ function GroupsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [groupStore.myGroups, activeGroupId],
   );
+
+  const isOwner = activeGroup?.creator_id === currentUser?.id;
+  const leaveMenuLabel = isOwner ? "Leave and delete group" : "Leave group";
 
   const participantsById = useMemo(() => {
     const map: Record<string, User> = {};
@@ -330,6 +347,38 @@ function GroupsPage() {
       .catch(() => setToast({ message: "Couldn't load older messages.", severity: "error" }))
       .finally(() => setLoadingOlder(false));
   }, [activeGroupId, messages, loadingOlder, hasMoreOlder]);
+
+  const handleOpenGroupMenu = useCallback((event: React.MouseEvent<HTMLElement>) => {
+    setMenuAnchorEl(event.currentTarget);
+  }, []);
+
+  const handleCloseGroupMenu = useCallback(() => {
+    setMenuAnchorEl(null);
+  }, []);
+
+  const handleOpenGroupInfo = useCallback(() => {
+    handleCloseGroupMenu();
+    setSettingsOpen(true);
+  }, [handleCloseGroupMenu]);
+
+  const handleOpenLeaveConfirm = useCallback(() => {
+    handleCloseGroupMenu();
+    setConfirmLeaveOpen(true);
+  }, [handleCloseGroupMenu]);
+
+  const handleConfirmLeaveOrDelete = useCallback(async () => {
+    if (!activeGroup) return;
+
+    setLeaveActionWorking(true);
+    const ok = isOwner ? await groupStore.deleteGroup(activeGroup.id) : await groupStore.leaveGroup(activeGroup.id);
+    setLeaveActionWorking(false);
+
+    if (ok) {
+      setConfirmLeaveOpen(false);
+      setActiveGroupId(undefined);
+      groupStore.loadMyGroups();
+    }
+  }, [activeGroup, isOwner]);
 
   const handleTypingKeystroke = useCallback(() => {
     if (!activeGroupId) return;
@@ -668,10 +717,11 @@ function GroupsPage() {
               onBack={() => setActiveGroupId(undefined)}
               onToggleSearch={() => setSearchOpen((v) => !v)}
               isSearchOpen={searchOpen}
+              onHeaderClick={() => setSettingsOpen(true)}
               actions={
-                <Tooltip title="Members">
-                  <IconButton onClick={() => setMembersOpen(true)} aria-label="Group members">
-                    <GroupRounded />
+                <Tooltip title="Group actions">
+                  <IconButton onClick={handleOpenGroupMenu} aria-label="Group actions" aria-haspopup="true">
+                    <MoreVertRounded />
                   </IconButton>
                 </Tooltip>
               }
@@ -714,12 +764,58 @@ function GroupsPage() {
               placeholder={`Message #${activeGroup.name}`}
             />
 
-            <GroupMembersDialog
-              open={membersOpen}
-              onClose={() => setMembersOpen(false)}
-              group={activeGroup}
-              currentUserId={currentUser.id}
-              onLeftOrDeleted={() => setActiveGroupId(undefined)}
+            <Menu
+              anchorEl={menuAnchorEl}
+              open={Boolean(menuAnchorEl)}
+              onClose={handleCloseGroupMenu}
+              anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+              transformOrigin={{ vertical: "top", horizontal: "right" }}
+            >
+              <MenuItem onClick={handleOpenGroupInfo}>
+                <ListItemIcon>
+                  <InfoOutlined fontSize="small" />
+                </ListItemIcon>
+                <ListItemText>View group info</ListItemText>
+              </MenuItem>
+              <MenuItem onClick={handleOpenLeaveConfirm} sx={isOwner ? { color: "error.main" } : undefined}>
+                <ListItemIcon sx={isOwner ? { color: "error.main" } : undefined}>
+                  {isOwner ? <DeleteOutlineRounded fontSize="small" /> : <LogoutRounded fontSize="small" />}
+                </ListItemIcon>
+                <ListItemText>{leaveMenuLabel}</ListItemText>
+              </MenuItem>
+            </Menu>
+
+            <Dialog open={confirmLeaveOpen} onClose={() => !leaveActionWorking && setConfirmLeaveOpen(false)}>
+              <DialogTitle>{isOwner ? "Delete group?" : "Leave group?"}</DialogTitle>
+              <DialogContent>
+                <DialogContentText>
+                  {isOwner
+                    ? "Delete this group? This cannot be undone."
+                    : "You'll need a new invitation to rejoin this group."}
+                </DialogContentText>
+              </DialogContent>
+              <DialogActions>
+                <Button onClick={() => setConfirmLeaveOpen(false)} disabled={leaveActionWorking}>
+                  Cancel
+                </Button>
+                <Button onClick={handleConfirmLeaveOrDelete} color="error" variant="contained" disabled={leaveActionWorking}>
+                  {leaveActionWorking ? "Working..." : leaveMenuLabel}
+                </Button>
+              </DialogActions>
+            </Dialog>
+
+            <GroupSettingsModal
+              open={settingsOpen}
+              onClose={() => setSettingsOpen(false)}
+              groupId={activeGroup.id}
+              onUpdated={() => {
+                groupStore.loadMyGroups();
+              }}
+              onDeleted={() => {
+                setSettingsOpen(false);
+                setActiveGroupId(undefined);
+                groupStore.loadMyGroups();
+              }}
             />
 
             <SearchOverlay

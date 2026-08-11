@@ -1,3 +1,4 @@
+import { type KeyboardEvent } from "react";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import Avatar from "@mui/material/Avatar";
@@ -14,6 +15,7 @@ export interface ChatHeaderProps {
   onBack?: () => void;
   onToggleSearch?: () => void;
   isSearchOpen?: boolean;
+  onHeaderClick?: () => void;
   /** Extra actions rendered after the search button (e.g. a members icon for groups). */
   actions?: React.ReactNode;
 }
@@ -25,8 +27,16 @@ export function ChatHeader({
   onBack,
   onToggleSearch,
   isSearchOpen = false,
+  onHeaderClick,
   actions,
 }: ChatHeaderProps) {
+  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (!onHeaderClick) return;
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      onHeaderClick();
+    }
+  };
   return (
     <Stack
       direction="row"
@@ -56,7 +66,13 @@ export function ChatHeader({
         {title.charAt(0).toUpperCase()}
       </Avatar>
 
-      <Box sx={{ minWidth: 0, flex: 1 }}>
+      <Box
+        onClick={onHeaderClick}
+        onKeyDown={handleKeyDown}
+        role={onHeaderClick ? "button" : undefined}
+        tabIndex={onHeaderClick ? 0 : undefined}
+        sx={{ minWidth: 0, flex: 1, cursor: onHeaderClick ? "pointer" : "default" }}
+      >
         <Typography variant="subtitle2" noWrap sx={{ lineHeight: 1.3 }}>
           {title}
         </Typography>

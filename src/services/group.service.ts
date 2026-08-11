@@ -12,41 +12,43 @@ import type {
   GroupMemberResponse,
   GroupMembersResponse,
   GroupResponse,
+  UpdateGroupRequest,
 } from "@/types/group";
 import type { InviteLinkResponse } from "@/types/invite";
 
 class GroupService {
   async createGroup(payload: CreateGroupRequest): Promise<GroupResponse> {
-    const { data } = await api.post<GroupResponse>(
-      "/groups/",
-      payload
-    );
+    const { data } = await api.post<GroupResponse>("/groups/", payload);
 
     return data;
   }
 
   async listMembers(groupId: string): Promise<GroupMembersResponse> {
-    const { data } = await api.get<GroupMembersResponse>(
-      `/groups/${groupId}/members`
-    );
+    const { data } = await api.get<GroupMembersResponse>(`/groups/${groupId}/members`);
 
     return data;
   }
 
   async addMember(groupId: string, userId: string): Promise<GroupMemberResponse> {
-    const { data } = await api.post<GroupMemberResponse>(
-      `/groups/${groupId}/members`,
-      { user_id: userId }
-    );
+    const { data } = await api.post<GroupMemberResponse>(`/groups/${groupId}/members`, {
+      user_id: userId,
+    });
+
+    return data;
+  }
+
+  async updateMemberRole(groupId: string, userId: string, role: string): Promise<GroupMemberResponse> {
+    const { data } = await api.patch<GroupMemberResponse>(`/groups/${groupId}/members/${userId}`, {
+      role,
+    });
 
     return data;
   }
 
   async sendInvite(groupId: string, inviteeId: string): Promise<GroupInviteResponse> {
-    const { data } = await api.post<GroupInviteResponse>(
-      `/groups/${groupId}/invites`,
-      { invitee_id: inviteeId }
-    );
+    const { data } = await api.post<GroupInviteResponse>(`/groups/${groupId}/invites`, {
+      invitee_id: inviteeId,
+    });
 
     return data;
   }
@@ -70,7 +72,7 @@ class GroupService {
 
   async updateGroup(
     groupId: string,
-    payload: Partial<Pick<CreateGroupRequest, "name" | "description" | "is_private">>
+    payload: UpdateGroupRequest
   ): Promise<GroupInfoResponse> {
     const { data } = await api.patch<GroupInfoResponse>(`/groups/${groupId}`, payload);
     return data;

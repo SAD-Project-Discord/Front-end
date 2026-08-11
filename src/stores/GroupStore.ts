@@ -4,10 +4,11 @@ import groupService from "@/services/group.service";
 import type {
   CreateGroupRequest,
   Group,
+  GroupMember,
+  UpdateGroupRequest,
   GroupInfo,
   GroupInvitationInfo,
   GroupInvitationRespondAction,
-  GroupMember,
   GroupMemberInfo,
 } from "@/types/group";
 
@@ -27,11 +28,19 @@ class GroupStore {
 
   error: string | null = null;
 
-  members: GroupMember[] = [];
+  currentGroup: Group | null = null;
 
-  membersLoading = false;
+  isGroupLoading = false;
 
-  membersError: string | null = null;
+  groupError: string | null = null;
+
+  isSavingGroup = false;
+
+  groupSaveError: string | null = null;
+
+  isDeletingGroup = false;
+
+  groupDeleteError: string | null = null;
 
   isSubmittingMembers = false;
 
@@ -93,9 +102,33 @@ class GroupStore {
     this.error = message;
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private normalizeMembers(rawMembers: Array<any>, existingMembers?: GroupMember[]): GroupMember[] {
+    return rawMembers.map((member) => {
+      const id = member.id ?? member.user_id ?? `${member.group_id ?? member.groupId}-${member.user_id ?? member.id}`;
+      const existing = existingMembers?.find((existingMember) => existingMember.id === id || existingMember.user.id === String(member.user_id ?? member.id));
+      const user = {
+        id: String(member.user_id ?? member.id ?? existing?.user.id ?? ""),
+        username: member.username ?? member.user?.username ?? existing?.user.username ?? "",
+        email: member.email ?? member.user?.email ?? existing?.user.email ?? "",
+        name: member.name ?? member.user?.name ?? existing?.user.name ?? "",
+        bio: member.bio ?? member.user?.bio ?? existing?.user.bio ?? "",
+        avatar_url: member.avatar_url ?? member.user?.avatar_url ?? existing?.user.avatar_url ?? "",
+        created_at: member.created_at ?? member.user?.created_at ?? existing?.user.created_at ?? "",
+        updated_at: member.updated_at ?? member.user?.updated_at ?? existing?.user.updated_at ?? "",
+      };
+
+      return {
+        id,
+        user,
+        role: member.role === "owner" ? "owner" : member.role === "admin" ? "admin" : "member",
+        joined_at: member.joined_at ?? "",
+      };
+    });
+  }
+
   get memberUserIds(): string[] {
-    // Safely map member user ids, skipping members without a user or id
-    return this.members
+    return (this.currentGroup?.members ?? [])
       .map((member) => member.user && typeof member.user.id === "string" ? member.user.id : undefined)
       .filter((id): id is string => typeof id === "string");
   }
@@ -125,24 +158,67 @@ class GroupStore {
     }
   }
 
-  async loadMembers(groupId: string): Promise<void> {
-    this.membersLoading = true;
-    this.membersError = null;
+  async loadGroup(groupId: string): Promise<void> {
+    this.isGroupLoading = true;
+    this.groupError = null;
 
     try {
-      const response = await groupService.listMembers(groupId);
+      const response = await groupService.getGroup(groupId);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const rawGroup = response.data as Group & { members?: Array<any> };
 
       runInAction(() => {
-        this.members = response.data;
+        const members = Array.isArray(rawGroup.members)
+          ? this.normalizeMembers(rawGroup.members, this.currentGroup?.members)
+          : undefined;
+
+        this.currentGroup = {
+          ...rawGroup,
+          members,
+        };
       });
     } catch (error: unknown) {
       runInAction(() => {
-        this.members = [];
-        this.membersError = getErrorMessage(error, "Could not load members.");
+        this.currentGroup = null;
+        this.groupError = getErrorMessage(error, "Could not load group details.");
       });
     } finally {
       runInAction(() => {
-        this.membersLoading = false;
+        this.isGroupLoading = false;
+      });
+    }
+  }
+
+  async updateGroup(groupId: string, payload: UpdateGroupRequest): Promise<Group | null> {
+    this.isSavingGroup = true;
+    this.groupSaveError = null;
+
+    try {
+      const response = await groupService.updateGroup(groupId, payload);
+      const updatedGroup = response.data as Group & { members?: GroupMember[] };
+
+      runInAction(() => {
+        const mergedMembers = Array.isArray(updatedGroup.members)
+          ? this.normalizeMembers(updatedGroup.members, this.currentGroup?.members)
+          : this.currentGroup?.members;
+
+        this.currentGroup = {
+          ...updatedGroup,
+          members: mergedMembers,
+        };
+        this.groups = [this.currentGroup, ...this.groups.filter((group) => group.id !== updatedGroup.id)];
+      });
+
+      return this.currentGroup;
+    } catch (error: unknown) {
+      runInAction(() => {
+        this.groupSaveError = getErrorMessage(error, "Could not save group settings.");
+      });
+
+      return null;
+    } finally {
+      runInAction(() => {
+        this.isSavingGroup = false;
       });
     }
   }
@@ -187,10 +263,30 @@ class GroupStore {
     );
 
     if (success) {
-      await this.loadMembers(groupId);
+      await this.loadGroup(groupId);
     }
 
     return success;
+  }
+
+  async updateGroupMemberRole(groupId: string, userId: string, role: string): Promise<boolean> {
+    this.isSubmittingMembers = true;
+    this.membersActionError = null;
+
+    try {
+      await groupService.updateMemberRole(groupId, userId, role);
+      await this.loadGroup(groupId);
+      return true;
+    } catch (error: unknown) {
+      runInAction(() => {
+        this.membersActionError = getErrorMessage(error, "Could not update member role.");
+      });
+      return false;
+    } finally {
+      runInAction(() => {
+        this.isSubmittingMembers = false;
+      });
+    }
   }
 
   async inviteMembers(groupId: string, userIds: string[]): Promise<boolean> {
@@ -263,7 +359,7 @@ class GroupStore {
 
   async updateGroupInfo(
     groupId: string,
-    payload: Partial<Pick<CreateGroupRequest, "name" | "description" | "is_private">>
+    payload: UpdateGroupRequest
   ): Promise<boolean> {
     try {
       const response = await groupService.updateGroup(groupId, payload);
