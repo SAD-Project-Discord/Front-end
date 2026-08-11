@@ -293,22 +293,6 @@ function GroupSettingsModal({ open, onClose, groupId, onUpdated, onDeleted }: Gr
                 </Stack>
 
                 {isAdmin ? (
-                  <Button
-                    type="button"
-                    variant="outlined"
-                    color="secondary"
-                    fullWidth
-                    size="large"
-                    sx={{ mt: 2 }}
-                    onClick={() => setInviteOpen(true)}
-                    disabled={isWorking}
-                    startIcon={<PersonAdd />}
-                  >
-                    Add Members
-                  </Button>
-                ) : null}
-
-                {isAdmin ? (
                   <Box sx={{ mt: 3, p: 2, border: "1px solid", borderColor: "divider", borderRadius: 2, bgcolor: "background.paper" }}>
                     <Typography variant="subtitle2" sx={{ mb: 1, display: "flex", alignItems: "center", gap: 1 }}>
                       <Shield fontSize="small" /> Danger zone
@@ -340,9 +324,23 @@ function GroupSettingsModal({ open, onClose, groupId, onUpdated, onDeleted }: Gr
             <Box>
               <Stack spacing={2}>
                 <Box>
-                  <Typography variant="subtitle1" sx={{ mb: 1 }}>
-                    Members ({group.member_count})
-                  </Typography>
+                  <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1 }}>
+                    <Typography variant="subtitle1">
+                      Members ({group.member_count})
+                    </Typography>
+                    {isAdmin ? (
+                      <Tooltip title="Add members">
+                        <IconButton
+                          size="small"
+                          onClick={() => setInviteOpen(true)}
+                          disabled={isWorking}
+                          aria-label="Add members"
+                        >
+                          <PersonAdd fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    ) : null}
+                  </Box>
 
                   <Box sx={{ border: "1px solid", borderColor: "divider", borderRadius: 2, overflow: "hidden" }}>
                     {isLoading ? (
