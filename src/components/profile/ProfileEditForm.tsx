@@ -6,6 +6,9 @@ import {
   Avatar,
   Box,
   Button,
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
   Card,
   Divider,
   FormControl,
@@ -29,6 +32,8 @@ import {
 import LogoutRounded from "@mui/icons-material/LogoutRounded";
 import { useRouter } from "next/navigation";
 import authStore from "@/stores/AuthStore";
+import { authApi } from "@/lib/api/auth";
+import ExpandMoreRounded from "@mui/icons-material/ExpandMoreRounded";
 import { observer } from "mobx-react-lite";
 import { ApiError } from "@/lib/api/api";
 import { storageApi } from "@/lib/api/storage";
@@ -72,6 +77,10 @@ function ProfileEditForm({ user, onCancel, onSaved, embedded = false }: ProfileE
   const [isSaving, setIsSaving] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const router = useRouter();
+  const [sessionsOpen, setSessionsOpen] = useState(false);
+  const [sessions, setSessions] = useState<Array<{ id: string; created_at: string; expires_at: string; device: string }>>([]);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [sessionsError, setSessionsError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const [groupAddPermission, setGroupAddPermission] = useState<GroupAddPermission>("everyone");
@@ -346,6 +355,68 @@ function ProfileEditForm({ user, onCancel, onSaved, embedded = false }: ProfileE
             </FormHelperText>
           </Stack>
         </Box>
+
+        <Accordion
+          expanded={sessionsOpen}
+          onChange={(_, expanded) => {
+            setSessionsOpen(expanded);
+            if (expanded) {
+              // defer loading state to avoid sync setState in effect-like handlers
+              Promise.resolve().then(() => setSessionsLoading(true));
+              setSessionsError(null);
+              authApi
+                .sessions()
+                .then((res) => setSessions(res.data))
+                .catch(() => setSessionsError("Couldn't load sessions."))
+                .finally(() => setSessionsLoading(false));
+            }
+          }}
+          sx={{ mt: 2 }}
+        >
+          <AccordionSummary expandIcon={<ExpandMoreRounded />}>
+            <Typography sx={{ fontWeight: 600 }}>Active sessions</Typography>
+          </AccordionSummary>
+          <AccordionDetails>
+            {sessionsLoading ? (
+              <Typography variant="body2" color="text.secondary">Loading…</Typography>
+            ) : sessionsError ? (
+              <Alert severity="error">{sessionsError}</Alert>
+            ) : sessions.length === 0 ? (
+              <Typography variant="body2" color="text.secondary">No active sessions.</Typography>
+            ) : (
+              <Box>
+                {sessions.map((s) => (
+                  <Box key={s.id} sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", py: 1 }}>
+                    <Box>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>{s.device}</Typography>
+                      <Typography variant="caption" color="text.secondary">Created: {new Date(s.created_at).toLocaleString()}</Typography>
+                      <br />
+                      <Typography variant="caption" color="text.secondary">Expires: {new Date(s.expires_at).toLocaleString()}</Typography>
+                    </Box>
+                    <Box>
+                      <IconButton
+                        edge="end"
+                        aria-label="Revoke session"
+                        onClick={() => {
+                          const prev = sessions;
+                          setSessions((st) => st.filter((x) => x.id !== s.id));
+                          authApi
+                            .revokeSession(s.id)
+                            .catch(() => {
+                              setSessions(prev);
+                            });
+                        }}
+                        size="small"
+                      >
+                        <DeleteOutlineRounded fontSize="small" />
+                      </IconButton>
+                    </Box>
+                  </Box>
+                ))}
+              </Box>
+            )}
+          </AccordionDetails>
+        </Accordion>
 
         <Box sx={{ mt: 2 }}>
           <Button
