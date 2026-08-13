@@ -164,17 +164,15 @@ export function ChatInput({
       <Stack
         direction="row"
         spacing={0.5}
-        sx={{ alignItems: "flex-end", bgcolor: "action.hover", borderRadius: 4, px: 1, py: 0.5, opacity: disabled ? 0.6 : 1 }}
+        sx={{ alignItems: "center", bgcolor: "action.hover", borderRadius: 4, px: 1, py: 0.5, opacity: disabled ? 0.6 : 1 }}
       >
         <input ref={fileInputRef} type="file" multiple hidden onChange={handleFileChange} disabled={disabled} />
         <IconButton
-          size="small"
           disabled={disabled}
           onClick={() => fileInputRef.current?.click()}
           aria-label="Attach a file"
-          sx={{ mb: 0.5 }}
         >
-          <AttachFileRoundedIcon fontSize="small" />
+          <AttachFileRoundedIcon />
         </IconButton>
 
         <TextField
@@ -195,35 +193,29 @@ export function ChatInput({
         />
 
         <IconButton
-          size="small"
           disabled={disabled}
           onClick={(e) => setStickerAnchor(e.currentTarget)}
           aria-label="Send a sticker"
-          sx={{ mb: 0.5 }}
         >
-          <StickyNote2RoundedIcon fontSize="small" />
+          <StickyNote2RoundedIcon />
         </IconButton>
         <IconButton
-          size="small"
           disabled={disabled}
           onClick={(e) => setEmojiAnchor(e.currentTarget)}
           aria-label="Open emoji picker"
-          sx={{ mb: 0.5 }}
         >
-          <EmojiEmotionsRoundedIcon fontSize="small" />
+          <EmojiEmotionsRoundedIcon />
         </IconButton>
 
         {onSchedule ? (
           <Tooltip title="Schedule send">
             <span>
               <IconButton
-                size="small"
                 disabled={!canSchedule}
                 onClick={openSchedulePopover}
                 aria-label="Schedule send"
-                sx={{ mb: 0.5 }}
               >
-                <ScheduleSendRoundedIcon fontSize="small" />
+                <ScheduleSendRoundedIcon />
               </IconButton>
             </span>
           </Tooltip>
@@ -235,13 +227,12 @@ export function ChatInput({
           aria-label="Send message"
           color="primary"
           sx={{
-            mb: 0.5,
             bgcolor: canSend ? "primary.main" : "transparent",
             color: canSend ? "primary.contrastText" : "text.disabled",
             "&:hover": { bgcolor: canSend ? "primary.dark" : "transparent" },
           }}
         >
-          {isSending ? <CircularProgress size={18} color="inherit" /> : <SendRoundedIcon fontSize="small" />}
+          {isSending ? <CircularProgress size={20} color="inherit" /> : <SendRoundedIcon />}
         </IconButton>
       </Stack>
 
