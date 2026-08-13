@@ -1,13 +1,16 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
-import { Alert, Box, Button, CircularProgress, Stack } from "@mui/material";
-import { isAxiosError } from "axios";
-import { useSearchParams } from "next/navigation";
+// Direct/hard navigation to this URL (typed, refreshed, or a shared link)
+// renders as its own standalone page — clicking a name/avatar elsewhere in
+// the app instead opens the same profile as a plain client-side modal (see
+// `openUserProfile` in `@/lib/profileNav`), without touching this route at
+// all.
 
-import ProfileView from "@/components/profile/ProfileView";
-import userService from "@/services/user.service";
-import type { PublicUserProfile } from "@/types/user";
+import { Suspense, useCallback } from "react";
+import { Box, IconButton, Tooltip } from "@mui/material";
+import { ArrowBackRounded } from "@mui/icons-material";
+import { useRouter, useSearchParams } from "next/navigation";
+import UserProfilePanel from "@/components/profile/UserProfilePanel";
 
 const pageContainerStyles = {
   minHeight: "100vh",
@@ -17,105 +20,37 @@ const pageContainerStyles = {
   p: { xs: 2, sm: 4 },
 };
 
-const getErrorMessage = (error: unknown) => {
-  if (isAxiosError(error) && error.response?.status === 404) {
-    return "This user could not be found.";
-  }
+function UsersProfilePageContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const userId = searchParams.get("userId")?.trim() ?? "";
 
-  return "Unable to load this profile. Please try again.";
-};
-
-interface PublicProfileLoaderProps {
-  userId: string;
-}
-
-function PublicProfileLoader({ userId }: PublicProfileLoaderProps) {
-  const [user, setUser] = useState<PublicUserProfile | null>(null);
-  const [isLoading, setIsLoading] = useState(Boolean(userId));
-  const [error, setError] = useState<string | null>(
-    userId ? null : "No user was selected.",
-  );
-  const [requestVersion, setRequestVersion] = useState(0);
-
-  const retry = () => {
-    setUser(null);
-    setError(null);
-    setIsLoading(true);
-    setRequestVersion((version) => version + 1);
-  };
-
-  useEffect(() => {
-    if (!userId) {
-      return;
+  const handleBack = useCallback(() => {
+    if (window.history.length > 1) {
+      router.back();
+    } else {
+      router.push("/dm");
     }
-
-    let isCancelled = false;
-
-    const loadProfile = async () => {
-      try {
-        const profile = await userService.getPublicProfile(userId);
-
-        if (!isCancelled) {
-          setUser(profile);
-        }
-      } catch (requestError: unknown) {
-        if (!isCancelled) {
-          setUser(null);
-          setError(getErrorMessage(requestError));
-        }
-      } finally {
-        if (!isCancelled) {
-          setIsLoading(false);
-        }
-      }
-    };
-
-    loadProfile();
-
-    return () => {
-      isCancelled = true;
-    };
-  }, [requestVersion, userId]);
+  }, [router]);
 
   return (
     <Box component="main" sx={pageContainerStyles}>
-      {isLoading ? (
-        <CircularProgress aria-label="Loading public profile" />
-      ) : null}
-
-      {!isLoading && error ? (
-        <Stack spacing={2} sx={{ width: "100%", maxWidth: 600 }}>
-          <Alert severity="error">{error}</Alert>
-          {userId ? (
-            <Button variant="contained" onClick={retry}>
-              Try again
-            </Button>
-          ) : null}
-        </Stack>
-      ) : null}
-
-      {!isLoading && user ? <ProfileView user={user} /> : null}
+      <Box sx={{ width: "100%", maxWidth: 600 }}>
+        <Tooltip title="Back">
+          <IconButton aria-label="Back" onClick={handleBack} sx={{ mb: 1 }}>
+            <ArrowBackRounded />
+          </IconButton>
+        </Tooltip>
+        <UserProfilePanel key={userId} userId={userId} />
+      </Box>
     </Box>
   );
 }
 
-function PublicProfileContent() {
-  const searchParams = useSearchParams();
-  const userId = searchParams.get("userId")?.trim() ?? "";
-
-  return <PublicProfileLoader key={userId} userId={userId} />;
-}
-
-export default function PublicProfilePage() {
+export default function UsersProfilePage() {
   return (
-    <Suspense
-      fallback={
-        <Box component="main" sx={pageContainerStyles}>
-          <CircularProgress aria-label="Loading public profile" />
-        </Box>
-      }
-    >
-      <PublicProfileContent />
+    <Suspense fallback={<Box component="main" sx={pageContainerStyles} />}>
+      <UsersProfilePageContent />
     </Suspense>
   );
 }

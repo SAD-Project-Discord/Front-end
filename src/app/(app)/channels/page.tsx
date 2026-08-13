@@ -29,12 +29,14 @@ import type { Message, MessageAttachment, User } from "@/lib/types";
 import { messagesApi } from "@/lib/api/messages";
 import type { ApiMessage } from "@/lib/api/messages";
 import { scheduledMessagesApi } from "@/lib/api/scheduledMessages";
+import ScheduledMessagesDialog from "@/components/chat/ScheduledMessagesDialog";
 import { ApiError } from "@/lib/api/api";
 import { usersApi } from "@/lib/api/users";
 import { chatWs } from "@/lib/api/chat";
 import { apiMessageToMessage } from "@/lib/chat/mappers";
 import { mapGlobalSearchResults } from "@/lib/chat/globalSearch";
 import { chatSurfaces } from "@/lib/theme/theme";
+import { openUserProfile } from "@/lib/profileNav";
 
 import authStore from "@/stores/AuthStore";
 import channelStore from "@/stores/ChannelStore";
@@ -91,6 +93,7 @@ function ChannelsPage() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
+  const [scheduledOpen, setScheduledOpen] = useState(false);
 
   const [avatarByUserId, setAvatarByUserId] = useState<Record<string, string>>({});
   const [toast, setToast] = useState<{ message: string; severity: "error" | "success" } | null>(null);
@@ -583,7 +586,7 @@ function ChannelsPage() {
           <Tooltip title="Your profile">
             <IconButton
               size="small"
-              onClick={() => router.push("/profile")}
+              onClick={() => openUserProfile(currentUser.id)}
               aria-label="Open your profile"
               sx={{ p: 0 }}
             >
@@ -610,12 +613,12 @@ function ChannelsPage() {
             </IconButton>
           </Tooltip>
           <Tooltip title="Scheduled messages">
-            <IconButton size="small" onClick={() => router.push("/scheduled")} aria-label="Scheduled messages">
+            <IconButton size="small" onClick={() => setScheduledOpen(true)} aria-label="Scheduled messages">
               <ScheduleSendRounded fontSize="small" />
             </IconButton>
           </Tooltip>
           <Tooltip title="Settings & Privacy">
-            <IconButton size="small" onClick={() => router.push("/settings")} aria-label="Settings & Privacy">
+            <IconButton size="small" onClick={() => openUserProfile(currentUser?.id ?? "")} aria-label="Settings & Privacy">
               <SettingsRounded fontSize="small" />
             </IconButton>
           </Tooltip>
@@ -805,6 +808,8 @@ function ChannelsPage() {
         }}
         onSelectResult={handleGlobalSearchResult}
       />
+
+      <ScheduledMessagesDialog open={scheduledOpen} onClose={() => setScheduledOpen(false)} />
 
       <Snackbar open={Boolean(toast)} autoHideDuration={4000} onClose={() => setToast(null)}>
         {toast ? (

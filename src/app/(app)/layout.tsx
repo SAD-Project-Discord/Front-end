@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import Box from '@mui/material/Box';
 import { isAuthenticated } from '@/lib/auth';
 import { SectionNavRail } from '@/components/nav/SectionNavRail';
+import ProfileModalHost from '@/components/profile/ProfileModalHost';
 
 const SECTIONS_WITH_RAIL = ['/dm', '/groups', '/channels'];
 
@@ -30,12 +31,18 @@ export default function ProtectedLayout({ children }: { children: ReactNode }) {
   if (!authorized) return null;
 
   const showRail = SECTIONS_WITH_RAIL.some((section) => pathname?.startsWith(section));
-  if (!showRail) return <>{children}</>;
 
   return (
-    <Box sx={{ display: 'flex', height: '100dvh', width: '100%', overflow: 'hidden' }}>
-      <SectionNavRail />
-      <Box sx={{ flex: 1, minWidth: 0, height: '100%' }}>{children}</Box>
-    </Box>
+    <>
+      {showRail ? (
+        <Box sx={{ display: 'flex', height: '100dvh', width: '100%', overflow: 'hidden' }}>
+          <SectionNavRail />
+          <Box sx={{ flex: 1, minWidth: 0, height: '100%' }}>{children}</Box>
+        </Box>
+      ) : (
+        children
+      )}
+      <ProfileModalHost />
+    </>
   );
 }

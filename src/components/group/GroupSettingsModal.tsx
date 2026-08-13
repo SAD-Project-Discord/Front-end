@@ -35,6 +35,7 @@ import AddMembersModal from "@/components/members/AddMembersModal";
 import groupStore from "@/stores/GroupStore";
 import authStore from "@/stores/AuthStore";
 import userService from "@/services/user.service";
+import { openUserProfile } from "@/lib/profileNav";
 import { runInAction } from "mobx";
 import type { Group, GroupMember, UpdateGroupRequest } from "@/types/group";
 
@@ -366,15 +367,26 @@ function GroupSettingsModal({ open, onClose, groupId, onUpdated, onDeleted }: Gr
 
                           return (
                             <ListItem key={member.id ?? user?.id ?? `member-${index}`} sx={{ px: 2, py: 1.5, borderBottom: "1px solid", borderColor: "divider" }}>
-                              <ListItemAvatar>
-                                <Avatar src={user?.avatar_url || undefined}>
-                                  {getInitials(displayName)}
-                                </Avatar>
-                              </ListItemAvatar>
-                              <ListItemText
-                                primary={displayName}
-                                secondary={displayUsername}
-                              />
+                              <Box
+                                onClick={user?.id ? () => openUserProfile(user.id) : undefined}
+                                sx={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  flex: 1,
+                                  minWidth: 0,
+                                  cursor: user?.id ? "pointer" : "default",
+                                }}
+                              >
+                                <ListItemAvatar>
+                                  <Avatar src={user?.avatar_url || undefined}>
+                                    {getInitials(displayName)}
+                                  </Avatar>
+                                </ListItemAvatar>
+                                <ListItemText
+                                  primary={displayName}
+                                  secondary={displayUsername}
+                                />
+                              </Box>
                               <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, ml: 2 }}>
                                 {/* Promote/Demote button intentionally removed for now */}
                                 {canModify ? (

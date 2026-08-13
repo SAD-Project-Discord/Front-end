@@ -1,5 +1,5 @@
-import { Avatar, Box, Button, Card, Divider, IconButton, Stack, Typography } from "@mui/material";
-import { ArrowBackRounded, EditRounded } from "@mui/icons-material";
+import { Avatar, Box, Card, Divider, IconButton, Stack, Tooltip, Typography } from "@mui/material";
+import { ArrowBackRounded, SettingsRounded } from "@mui/icons-material";
 
 interface ProfileUser {
   username: string;
@@ -13,22 +13,21 @@ interface ProfileViewProps {
   user: ProfileUser;
   onBack?: () => void;
   onEdit?: () => void;
+  /** Strip the outer card chrome (border/shadow/max-width) — used inside a Dialog that already provides it. */
+  embedded?: boolean;
 }
 
-export default function ProfileView({ user, onBack, onEdit }: ProfileViewProps) {
+export default function ProfileView({ user, onBack, onEdit, embedded = false }: ProfileViewProps) {
   const avatarFallback = user.name.trim().charAt(0).toUpperCase() || "?";
 
   return (
     <Card
       elevation={0}
-      sx={{
-        width: "100%",
-        maxWidth: 600,
-        p: { xs: 3, sm: 4 },
-        border: "1px solid",
-        borderColor: "divider",
-        borderRadius: 3,
-      }}
+      sx={
+        embedded
+          ? { width: "100%", p: 0, border: "none", boxShadow: "none", bgcolor: "transparent" }
+          : { width: "100%", maxWidth: 600, p: { xs: 3, sm: 4 }, border: "1px solid", borderColor: "divider", borderRadius: 3 }
+      }
     >
       {onBack || onEdit ? (
         <Stack direction="row" spacing={1} sx={{ alignItems: "center", justifyContent: "space-between", mb: 2 }}>
@@ -40,9 +39,11 @@ export default function ProfileView({ user, onBack, onEdit }: ProfileViewProps) 
             <Box />
           )}
           {onEdit ? (
-            <Button variant="outlined" startIcon={<EditRounded />} onClick={onEdit}>
-              Edit profile
-            </Button>
+            <Tooltip title="Edit profile & settings">
+              <IconButton aria-label="Edit profile & settings" onClick={onEdit}>
+                <SettingsRounded />
+              </IconButton>
+            </Tooltip>
           ) : null}
         </Stack>
       ) : null}
@@ -56,7 +57,7 @@ export default function ProfileView({ user, onBack, onEdit }: ProfileViewProps) 
           {avatarFallback}
         </Avatar>
 
-        <Typography component="h1" variant="h1">
+        <Typography component="h1" variant="h1" sx={{ fontSize: "1.25rem", fontWeight: 700 }}>
           {user.name}
         </Typography>
         <Typography color="text.secondary">@{user.username}</Typography>

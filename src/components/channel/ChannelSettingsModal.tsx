@@ -40,6 +40,7 @@ import { InviteLinkSection } from "@/components/members/InviteLinkSection";
 import ChannelRolesPanel from "@/components/channel/ChannelRolesPanel";
 import MemberRolesPopover from "@/components/channel/MemberRolesPopover";
 import channelStore from "@/stores/ChannelStore";
+import { openUserProfile } from "@/lib/profileNav";
 import type { Channel, ChannelMember, UpdateChannelRequest } from "@/types/channel";
 
 interface ChannelSettingsModalProps {
@@ -416,17 +417,22 @@ function ChannelSettingsModal({
                           pr: 2,
                         }}
                       >
-                        <ListItemAvatar>
-                          <Avatar>{member.name.trim().charAt(0).toUpperCase() || "?"}</Avatar>
-                        </ListItemAvatar>
-                        <ListItemText
-                          primary={member.name}
-                          secondary={
-                            member.custom_roles.length > 0
-                              ? `@${member.username} · ${member.custom_roles.map((r) => r.name).join(", ")}`
-                              : `@${member.username}`
-                          }
-                        />
+                        <Box
+                          onClick={() => openUserProfile(member.user_id)}
+                          sx={{ display: "flex", alignItems: "center", flex: 1, minWidth: 0, cursor: "pointer" }}
+                        >
+                          <ListItemAvatar>
+                            <Avatar>{member.name.trim().charAt(0).toUpperCase() || "?"}</Avatar>
+                          </ListItemAvatar>
+                          <ListItemText
+                            primary={member.name}
+                            secondary={
+                              member.custom_roles.length > 0
+                                ? `@${member.username} · ${member.custom_roles.map((r) => r.name).join(", ")}`
+                                : `@${member.username}`
+                            }
+                          />
+                        </Box>
                         <Stack direction="row" spacing={0.5} sx={{ alignItems: "center", flexShrink: 0 }}>
                           <Chip
                             label={

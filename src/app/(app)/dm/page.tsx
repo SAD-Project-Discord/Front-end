@@ -23,6 +23,7 @@ import { usersApi } from "@/lib/api/users";
 import { messagesApi } from "@/lib/api/messages";
 import type { ApiMessage } from "@/lib/api/messages";
 import { scheduledMessagesApi } from "@/lib/api/scheduledMessages";
+import ScheduledMessagesDialog from "@/components/chat/ScheduledMessagesDialog";
 import { ApiError } from "@/lib/api/api";
 import { chatWs } from "@/lib/api/chat";
 import { loadDmContacts, markDmContactRead, upsertDmContact, type DmContact } from "@/lib/chat/dmContacts";
@@ -37,6 +38,7 @@ import { MessageList } from "@/components/chat/MessageList";
 import { NewDirectMessageDialog, type ResolvedUser } from "@/components/chat/NewDirectMessageDialog";
 import { SearchOverlay, type MessageSearchResultItem } from "@/components/chat/SearchOverlay";
 import { chatSurfaces } from "@/lib/theme/theme";
+import { openUserProfile } from "@/lib/profileNav";
 
 const PAGE_SIZE = 30;
 const TYPING_STOP_DELAY_MS = 2000;
@@ -107,6 +109,7 @@ function DirectMessagesPageInner() {
   const [newDmOpen, setNewDmOpen] = useState(false);
   const [conversationSearchOpen, setConversationSearchOpen] = useState(false);
   const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
+  const [scheduledOpen, setScheduledOpen] = useState(false);
 
   const [toast, setToast] = useState<{ message: string; severity: "error" | "success" } | null>(null);
 
@@ -598,7 +601,7 @@ function DirectMessagesPageInner() {
           <Tooltip title="Your profile">
             <IconButton
               size="small"
-              onClick={() => router.push("/profile")}
+              onClick={() => openUserProfile(currentUser.id)}
               aria-label="Open your profile"
               sx={{ p: 0 }}
             >
@@ -620,12 +623,12 @@ function DirectMessagesPageInner() {
             </IconButton>
           </Tooltip>
           <Tooltip title="Scheduled messages">
-            <IconButton size="small" onClick={() => router.push("/scheduled")}>
+            <IconButton size="small" onClick={() => setScheduledOpen(true)}>
               <ScheduleSendRounded fontSize="small" />
             </IconButton>
           </Tooltip>
           <Tooltip title="Settings & Privacy">
-            <IconButton size="small" onClick={() => router.push("/settings")}>
+            <IconButton size="small" onClick={() => openUserProfile(currentUser?.id ?? "")}>
               <SettingsRounded fontSize="small" />
             </IconButton>
           </Tooltip>
@@ -663,6 +666,7 @@ function DirectMessagesPageInner() {
               onBack={() => setActiveContactId(undefined)}
               onToggleSearch={() => setConversationSearchOpen((v) => !v)}
               isSearchOpen={conversationSearchOpen}
+              onHeaderClick={() => openUserProfile(activeUser.id)}
             />
 
             {isViewingSearchContext ? (
@@ -833,6 +837,7 @@ function DirectMessagesPageInner() {
           </Alert>
         ) : undefined}
       </Snackbar>
+      <ScheduledMessagesDialog open={scheduledOpen} onClose={() => setScheduledOpen(false)} />
     </Box>
   );
 }
