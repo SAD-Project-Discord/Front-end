@@ -10,6 +10,11 @@ import {
   AccordionDetails,
   AccordionSummary,
   Card,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
   Divider,
   FormControl,
   FormControlLabel,
@@ -81,6 +86,11 @@ function ProfileEditForm({ user, onCancel, onSaved, embedded = false }: ProfileE
   const [sessions, setSessions] = useState<Array<{ id: string; created_at: string; expires_at: string; device: string }>>([]);
   const [sessionsLoading, setSessionsLoading] = useState(false);
   const [sessionsError, setSessionsError] = useState<string | null>(null);
+  const [revokeConfirmOpen, setRevokeConfirmOpen] = useState(false);
+  const [revokeTarget, setRevokeTarget] = useState<{ id: string; device: string } | null>(null);
+  const [revokeWorking, setRevokeWorking] = useState(false);
+  const [logoutAllConfirmOpen, setLogoutAllConfirmOpen] = useState(false);
+  const [logoutAllWorking, setLogoutAllWorking] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [groupAddPermission, setGroupAddPermission] = useState<GroupAddPermission>("everyone");
@@ -371,50 +381,93 @@ function ProfileEditForm({ user, onCancel, onSaved, embedded = false }: ProfileE
                 .finally(() => setSessionsLoading(false));
             }
           }}
-          sx={{ mt: 2 }}
+          sx={{
+            mt: 2,
+            borderRadius: 3,
+            overflow: "hidden",
+            boxShadow: "none",
+            border: "1px solid",
+            borderColor: "divider",
+            bgcolor: "background.paper",
+            "&:before": { display: "none" },
+          }}
         >
           <AccordionSummary expandIcon={<ExpandMoreRounded />}>
             <Typography sx={{ fontWeight: 600 }}>Active sessions</Typography>
           </AccordionSummary>
-          <AccordionDetails>
-            {sessionsLoading ? (
-              <Typography variant="body2" color="text.secondary">Loading…</Typography>
-            ) : sessionsError ? (
-              <Alert severity="error">{sessionsError}</Alert>
-            ) : sessions.length === 0 ? (
-              <Typography variant="body2" color="text.secondary">No active sessions.</Typography>
-            ) : (
-              <Box>
-                {sessions.map((s) => (
-                  <Box key={s.id} sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", py: 1 }}>
-                    <Box>
-                      <Typography variant="body2" sx={{ fontWeight: 600 }}>{s.device}</Typography>
-                      <Typography variant="caption" color="text.secondary">Created: {new Date(s.created_at).toLocaleString()}</Typography>
-                      <br />
-                      <Typography variant="caption" color="text.secondary">Expires: {new Date(s.expires_at).toLocaleString()}</Typography>
+          <AccordionDetails sx={{ pt: 0 }}>
+            <Box
+              sx={{
+                border: "1px solid",
+                borderColor: "divider",
+                borderRadius: 2,
+                bgcolor: "background.default",
+                overflow: "hidden",
+              }}
+            >
+              {sessionsLoading ? (
+                <Box sx={{ p: 2 }}>
+                  <Typography variant="body2" color="text.secondary">Loading…</Typography>
+                </Box>
+              ) : sessionsError ? (
+                <Box sx={{ p: 2 }}>
+                  <Alert severity="error">{sessionsError}</Alert>
+                </Box>
+              ) : sessions.length === 0 ? (
+                <Box sx={{ p: 2 }}>
+                  <Typography variant="body2" color="text.secondary">No active sessions.</Typography>
+                </Box>
+              ) : (
+                <Box>
+                  {sessions.map((s, index) => (
+                    <Box
+                      key={s.id}
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 2,
+                        p: 1.5,
+                        borderBottom: index === sessions.length - 1 ? "none" : "1px solid",
+                        borderColor: "divider",
+                      }}
+                    >
+                      <Box>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>{s.device}</Typography>
+                        <Typography variant="caption" color="text.secondary">Created: {new Date(s.created_at).toLocaleString()}</Typography>
+                        <br />
+                        <Typography variant="caption" color="text.secondary">Expires: {new Date(s.expires_at).toLocaleString()}</Typography>
+                      </Box>
+                      <Box>
+                        <IconButton
+                          edge="end"
+                          aria-label="Revoke session"
+                          onClick={() => {
+                            setRevokeTarget({ id: s.id, device: s.device });
+                            setRevokeConfirmOpen(true);
+                          }}
+                          size="small"
+                          color="error"
+                        >
+                          <DeleteOutlineRounded fontSize="small" />
+                        </IconButton>
+                      </Box>
                     </Box>
-                    <Box>
-                      <IconButton
-                        edge="end"
-                        aria-label="Revoke session"
-                        onClick={() => {
-                          const prev = sessions;
-                          setSessions((st) => st.filter((x) => x.id !== s.id));
-                          authApi
-                            .revokeSession(s.id)
-                            .catch(() => {
-                              setSessions(prev);
-                            });
-                        }}
-                        size="small"
-                      >
-                        <DeleteOutlineRounded fontSize="small" />
-                      </IconButton>
-                    </Box>
-                  </Box>
-                ))}
-              </Box>
-            )}
+                  ))}
+                </Box>
+              )}
+            </Box>
+
+            <Button
+              color="error"
+              variant="outlined"
+              onClick={() => setLogoutAllConfirmOpen(true)}
+              startIcon={<LogoutRounded />}
+              fullWidth
+              sx={{ mt: 2 }}
+            >
+              Log out of all sessions
+            </Button>
           </AccordionDetails>
         </Accordion>
 
@@ -438,6 +491,72 @@ function ProfileEditForm({ user, onCancel, onSaved, embedded = false }: ProfileE
             {isLoggingOut ? "Signing out…" : "Sign out"}
           </Button>
         </Box>
+
+      <Dialog open={revokeConfirmOpen} onClose={() => revokeWorking ? undefined : setRevokeConfirmOpen(false)}>
+        <DialogTitle>Revoke session?</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            {revokeTarget ? `Revoke session for ${revokeTarget.device}? This will sign that device out.` : "Revoke this session?"}
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setRevokeConfirmOpen(false)} disabled={revokeWorking}>Cancel</Button>
+          <Button
+            color="error"
+            onClick={async () => {
+              if (!revokeTarget) return;
+              setRevokeWorking(true);
+              try {
+                await authApi.revokeSession(revokeTarget.id);
+                setSessions((st) => st.filter((x) => x.id !== revokeTarget.id));
+              } catch {
+                setSessionsError("Couldn't revoke session.");
+              } finally {
+                setRevokeWorking(false);
+                setRevokeConfirmOpen(false);
+                setRevokeTarget(null);
+              }
+            }}
+            variant="contained"
+            disabled={revokeWorking}
+          >
+            {revokeWorking ? "Revoking…" : "Revoke"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={logoutAllConfirmOpen} onClose={() => logoutAllWorking ? undefined : setLogoutAllConfirmOpen(false)}>
+        <DialogTitle>Log out of all sessions?</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            This will sign you out from all devices. Are you sure you want to continue?
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setLogoutAllConfirmOpen(false)} disabled={logoutAllWorking}>Cancel</Button>
+          <Button
+            color="error"
+            onClick={async () => {
+              setLogoutAllWorking(true);
+              try {
+                await authApi.logoutAll().catch(() => undefined);
+                setSessions([]);
+                await authStore.logout();
+              } catch {
+                setSessionsError("Couldn't log out of all sessions.");
+              } finally {
+                setLogoutAllWorking(false);
+                setLogoutAllConfirmOpen(false);
+                router.replace("/login");
+              }
+            }}
+            variant="contained"
+            disabled={logoutAllWorking}
+          >
+            {logoutAllWorking ? "Working…" : "Log out of all sessions"}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
         {error ? <Alert severity="error">{error}</Alert> : null}
 
