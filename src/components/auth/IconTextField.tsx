@@ -17,6 +17,7 @@ interface IconTextFieldProps extends Omit<TextFieldProps, "label"> {
  */
 export default function IconTextField({ label, icon: Icon, id, slotProps, ...textFieldProps }: IconTextFieldProps) {
   const fieldId = id ?? `field-${label.replace(/\s+/g, "-").toLowerCase()}`;
+  const isMultiline = textFieldProps.multiline || false;
   return (
     <Box sx={{ mb: 2.25 }}>
       <Typography
@@ -34,7 +35,10 @@ export default function IconTextField({ label, icon: Icon, id, slotProps, ...tex
           ...slotProps,
           input: {
             startAdornment: (
-              <InputAdornment position="start">
+              <InputAdornment
+                position="start"
+                sx={{ alignSelf: isMultiline ? "flex-start" : "center", mt: isMultiline ? 0.1 : 0 }}
+              >
                 <Icon sx={{ fontSize: 20, color: "text.secondary" }} />
               </InputAdornment>
             ),
