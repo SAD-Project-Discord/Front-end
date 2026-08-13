@@ -282,7 +282,6 @@ function GroupSettingsModal({ open, onClose, groupId, onUpdated, onDeleted }: Gr
                     type="button"
                     variant="contained"
                     color="primary"
-                    size="large"
                     fullWidth
                     disabled={!isAdmin || isWorking}
                     onClick={handleSave}
