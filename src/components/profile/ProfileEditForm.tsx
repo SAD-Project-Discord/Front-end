@@ -7,8 +7,16 @@ import {
   Box,
   Button,
   Card,
+  Divider,
+  FormControl,
+  FormControlLabel,
+  FormHelperText,
+  FormLabel,
   IconButton,
+  Radio,
+  RadioGroup,
   Stack,
+  Switch,
   TextField,
   Typography,
 } from "@mui/material";
@@ -18,10 +26,13 @@ import {
   PhotoCameraRounded,
   SaveRounded,
 } from "@mui/icons-material";
+import { observer } from "mobx-react-lite";
 import { ApiError } from "@/lib/api/api";
 import { storageApi } from "@/lib/api/storage";
 import { usersApi } from "@/lib/api/users";
+import settingsStore from "@/stores/SettingsStore";
 import type { User } from "@/types/auth";
+import type { GroupAddPermission } from "@/types/settings";
 
 const ACCEPTED_IMAGE_TYPES = new Set([
   "image/jpeg",
@@ -47,7 +58,7 @@ function getErrorMessage(error: unknown): string {
   return "Could not update your profile. Please try again.";
 }
 
-export default function ProfileEditForm({ user, onCancel, onSaved, embedded = false }: ProfileEditFormProps) {
+function ProfileEditForm({ user, onCancel, onSaved, embedded = false }: ProfileEditFormProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [name, setName] = useState(user.name);
   const [username, setUsername] = useState(user.username);
@@ -58,20 +69,50 @@ export default function ProfileEditForm({ user, onCancel, onSaved, embedded = fa
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [groupAddPermission, setGroupAddPermission] = useState<GroupAddPermission>("everyone");
+  const [allowDirectAdd, setAllowDirectAdd] = useState(true);
+
+  useEffect(() => {
+    settingsStore.loadSettings();
+  }, []);
+
+  useEffect(() => {
+    // Synchronizing local editable form state from the mobx store once its
+    // fetch resolves — a legitimate effect, not state derivable from render.
+    if (settingsStore.settings) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setGroupAddPermission(settingsStore.settings.group_add_permission);
+      setAllowDirectAdd(settingsStore.settings.allow_direct_add);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settingsStore.settings]);
+
   useEffect(() => {
     return () => {
       if (avatarPreview) URL.revokeObjectURL(avatarPreview);
     };
   }, [avatarPreview]);
 
+  function handleGroupAddPermissionChange(permission: GroupAddPermission) {
+    setGroupAddPermission(permission);
+    if (permission === "nobody") {
+      setAllowDirectAdd(false);
+    }
+  }
+
   const trimmedName = name.trim();
   const trimmedUsername = username.trim();
+  const settingsChanged = settingsStore.settings
+    ? groupAddPermission !== settingsStore.settings.group_add_permission ||
+      allowDirectAdd !== settingsStore.settings.allow_direct_add
+    : false;
   const hasChanges =
     trimmedName !== user.name ||
     trimmedUsername !== user.username ||
     bio !== user.bio ||
     Boolean(avatarFile) ||
-    (removeAvatar && Boolean(user.avatar_url));
+    (removeAvatar && Boolean(user.avatar_url)) ||
+    settingsChanged;
 
   function handleAvatarChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -140,6 +181,17 @@ export default function ProfileEditForm({ user, onCancel, onSaved, embedded = fa
         bio,
         ...(avatarUrl !== undefined ? { avatar_url: avatarUrl } : {}),
       });
+
+      if (settingsChanged) {
+        const settingsSaved = await settingsStore.saveSettings({
+          group_add_permission: groupAddPermission,
+          allow_direct_add: allowDirectAdd,
+        });
+        if (!settingsSaved) {
+          setError(settingsStore.error ?? "Could not save settings.");
+          return;
+        }
+      }
 
       onSaved({
         ...user,
@@ -254,6 +306,42 @@ export default function ProfileEditForm({ user, onCancel, onSaved, embedded = fa
           placeholder="Tell people a little about yourself"
         />
 
+        <Divider />
+
+        <Box>
+          <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1.5 }}>
+            Settings &amp; Privacy
+          </Typography>
+
+          <Stack spacing={2}>
+            <FormControl>
+              <FormLabel sx={{ fontWeight: 600, color: "text.primary" }}>Who can invite you to groups</FormLabel>
+              <RadioGroup
+                value={groupAddPermission}
+                onChange={(e) => handleGroupAddPermissionChange(e.target.value as GroupAddPermission)}
+              >
+                <FormControlLabel value="everyone" control={<Radio />} label="Everyone" disabled={isSaving} />
+                <FormControlLabel value="contacts" control={<Radio />} label="Contacts only" disabled={isSaving} />
+                <FormControlLabel value="nobody" control={<Radio />} label="Nobody" disabled={isSaving} />
+              </RadioGroup>
+            </FormControl>
+
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={allowDirectAdd}
+                  onChange={(e) => setAllowDirectAdd(e.target.checked)}
+                  disabled={isSaving || groupAddPermission === "nobody"}
+                />
+              }
+              label="Allow people to add you directly, without an invitation"
+            />
+            <FormHelperText sx={{ mt: -1.5 }}>
+              When disabled, permitted people can still send an invitation for you to accept.
+            </FormHelperText>
+          </Stack>
+        </Box>
+
         {error ? <Alert severity="error">{error}</Alert> : null}
 
         <Stack direction="row" spacing={1.5} sx={{ justifyContent: "flex-end" }}>
@@ -273,3 +361,5 @@ export default function ProfileEditForm({ user, onCancel, onSaved, embedded = fa
     </Card>
   );
 }
+
+export default observer(ProfileEditForm);

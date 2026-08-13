@@ -1,5 +1,5 @@
-import { Avatar, Box, Button, Card, Divider, IconButton, Stack, Typography } from "@mui/material";
-import { ArrowBackRounded, EditRounded } from "@mui/icons-material";
+import { Avatar, Box, Card, Divider, IconButton, Stack, Tooltip, Typography } from "@mui/material";
+import { ArrowBackRounded, SettingsRounded } from "@mui/icons-material";
 
 interface ProfileUser {
   username: string;
@@ -39,9 +39,11 @@ export default function ProfileView({ user, onBack, onEdit, embedded = false }: 
             <Box />
           )}
           {onEdit ? (
-            <Button variant="outlined" startIcon={<EditRounded />} onClick={onEdit}>
-              Edit profile
-            </Button>
+            <Tooltip title="Edit profile & settings">
+              <IconButton aria-label="Edit profile & settings" onClick={onEdit}>
+                <SettingsRounded />
+              </IconButton>
+            </Tooltip>
           ) : null}
         </Stack>
       ) : null}
