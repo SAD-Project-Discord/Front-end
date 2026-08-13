@@ -26,6 +26,9 @@ import {
   PhotoCameraRounded,
   SaveRounded,
 } from "@mui/icons-material";
+import LogoutRounded from "@mui/icons-material/LogoutRounded";
+import { useRouter } from "next/navigation";
+import authStore from "@/stores/AuthStore";
 import { observer } from "mobx-react-lite";
 import { ApiError } from "@/lib/api/api";
 import { storageApi } from "@/lib/api/storage";
@@ -67,6 +70,8 @@ function ProfileEditForm({ user, onCancel, onSaved, embedded = false }: ProfileE
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [removeAvatar, setRemoveAvatar] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const router = useRouter();
   const [error, setError] = useState<string | null>(null);
 
   const [groupAddPermission, setGroupAddPermission] = useState<GroupAddPermission>("everyone");
@@ -340,6 +345,27 @@ function ProfileEditForm({ user, onCancel, onSaved, embedded = false }: ProfileE
               When disabled, permitted people can still send an invitation for you to accept.
             </FormHelperText>
           </Stack>
+        </Box>
+
+        <Box sx={{ mt: 2 }}>
+          <Button
+            variant="outlined"
+            color="error"
+            startIcon={<LogoutRounded />}
+            onClick={async () => {
+              setIsLoggingOut(true);
+              try {
+                await authStore.logout();
+              } finally {
+                setIsLoggingOut(false);
+                // Ensure the app returns to the login screen.
+                router.replace("/login");
+              }
+            }}
+            disabled={isLoggingOut}
+          >
+            {isLoggingOut ? "Signing out…" : "Sign out"}
+          </Button>
         </Box>
 
         {error ? <Alert severity="error">{error}</Alert> : null}
