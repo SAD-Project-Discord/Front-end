@@ -1,84 +1,36 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { Alert, Box, CircularProgress, Snackbar } from "@mui/material";
-import ProfileEditForm from "@/components/profile/ProfileEditForm";
-import ProfileView from "@/components/profile/ProfileView";
-import { usersApi } from "@/lib/api/users";
-import authStore from "@/stores/AuthStore";
-import type { User } from "@/types/auth";
+// "My profile" has been merged into the unified `/users/profile` modal
+// experience (self vs. others is resolved there). This route is kept only
+// so old bookmarks/links to `/profile` keep working.
 
-export default function ProfilePage() {
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { Box, CircularProgress } from "@mui/material";
+import authStore from "@/stores/AuthStore";
+import { profileHref } from "@/lib/profileNav";
+
+export default function ProfileRedirectPage() {
   const router = useRouter();
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [isEditing, setIsEditing] = useState(false);
-  const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    let isCancelled = false;
+    let cancelled = false;
 
-    const loadProfile = async () => {
-      try {
-        const response = await usersApi.me();
-
-        if (!isCancelled) {
-          setUser(response.data as User);
-        }
-      } catch {
-        if (!isCancelled) {
-          setError("Unable to load your profile. Please log in and try again.");
-        }
-      } finally {
-        if (!isCancelled) {
-          setIsLoading(false);
-        }
-      }
-    };
-
-    loadProfile();
+    (async () => {
+      await authStore.hydrateUser();
+      if (cancelled) return;
+      const id = authStore.user?.id;
+      router.replace(id ? profileHref(id) : "/dm");
+    })();
 
     return () => {
-      isCancelled = true;
+      cancelled = true;
     };
-  }, []);
+  }, [router]);
 
   return (
-    <Box
-      component="main"
-      sx={{
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        p: { xs: 2, sm: 4 },
-      }}
-    >
-      {isLoading ? <CircularProgress aria-label="Loading profile" /> : null}
-      {!isLoading && error ? <Alert severity="error">{error}</Alert> : null}
-      {!isLoading && user && isEditing ? (
-        <ProfileEditForm
-          user={user}
-          onCancel={() => setIsEditing(false)}
-          onSaved={(updatedUser) => {
-            setUser(updatedUser);
-            authStore.setUserProfile(updatedUser);
-            setIsEditing(false);
-            setSaved(true);
-          }}
-        />
-      ) : null}
-      {!isLoading && user && !isEditing ? (
-        <ProfileView user={user} onBack={() => router.back()} onEdit={() => setIsEditing(true)} />
-      ) : null}
-
-      <Snackbar open={saved} autoHideDuration={3000} onClose={() => setSaved(false)}>
-        <Alert severity="success" variant="filled" onClose={() => setSaved(false)}>
-          Profile updated.
-        </Alert>
-      </Snackbar>
+    <Box sx={{ minHeight: "100dvh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <CircularProgress size={24} aria-label="Redirecting to your profile" />
     </Box>
   );
 }

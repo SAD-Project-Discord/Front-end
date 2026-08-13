@@ -37,6 +37,7 @@ import { MessageList } from "@/components/chat/MessageList";
 import { NewDirectMessageDialog, type ResolvedUser } from "@/components/chat/NewDirectMessageDialog";
 import { SearchOverlay, type MessageSearchResultItem } from "@/components/chat/SearchOverlay";
 import { chatSurfaces } from "@/lib/theme/theme";
+import { openUserProfile } from "@/lib/profileNav";
 
 const PAGE_SIZE = 30;
 const TYPING_STOP_DELAY_MS = 2000;
@@ -598,7 +599,7 @@ function DirectMessagesPageInner() {
           <Tooltip title="Your profile">
             <IconButton
               size="small"
-              onClick={() => router.push("/profile")}
+              onClick={() => openUserProfile(currentUser.id)}
               aria-label="Open your profile"
               sx={{ p: 0 }}
             >
@@ -663,6 +664,7 @@ function DirectMessagesPageInner() {
               onBack={() => setActiveContactId(undefined)}
               onToggleSearch={() => setConversationSearchOpen((v) => !v)}
               isSearchOpen={conversationSearchOpen}
+              onHeaderClick={() => openUserProfile(activeUser.id)}
             />
 
             {isViewingSearchContext ? (

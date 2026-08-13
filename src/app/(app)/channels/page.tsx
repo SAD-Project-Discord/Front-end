@@ -35,6 +35,7 @@ import { chatWs } from "@/lib/api/chat";
 import { apiMessageToMessage } from "@/lib/chat/mappers";
 import { mapGlobalSearchResults } from "@/lib/chat/globalSearch";
 import { chatSurfaces } from "@/lib/theme/theme";
+import { openUserProfile } from "@/lib/profileNav";
 
 import authStore from "@/stores/AuthStore";
 import channelStore from "@/stores/ChannelStore";
@@ -583,7 +584,7 @@ function ChannelsPage() {
           <Tooltip title="Your profile">
             <IconButton
               size="small"
-              onClick={() => router.push("/profile")}
+              onClick={() => openUserProfile(currentUser.id)}
               aria-label="Open your profile"
               sx={{ p: 0 }}
             >

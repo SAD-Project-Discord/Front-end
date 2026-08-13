@@ -35,6 +35,8 @@ interface ProfileEditFormProps {
   user: User;
   onCancel: () => void;
   onSaved: (user: User) => void;
+  /** Strip the outer card chrome (border/shadow/max-width) — used inside a Dialog that already provides it. */
+  embedded?: boolean;
 }
 
 function getErrorMessage(error: unknown): string {
@@ -45,7 +47,7 @@ function getErrorMessage(error: unknown): string {
   return "Could not update your profile. Please try again.";
 }
 
-export default function ProfileEditForm({ user, onCancel, onSaved }: ProfileEditFormProps) {
+export default function ProfileEditForm({ user, onCancel, onSaved, embedded = false }: ProfileEditFormProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [name, setName] = useState(user.name);
   const [username, setUsername] = useState(user.username);
@@ -162,14 +164,11 @@ export default function ProfileEditForm({ user, onCancel, onSaved }: ProfileEdit
       component="form"
       onSubmit={handleSubmit}
       elevation={0}
-      sx={{
-        width: "100%",
-        maxWidth: 640,
-        p: { xs: 3, sm: 4 },
-        border: "1px solid",
-        borderColor: "divider",
-        borderRadius: 3,
-      }}
+      sx={
+        embedded
+          ? { width: "100%", p: 0, border: "none", boxShadow: "none", bgcolor: "transparent" }
+          : { width: "100%", maxWidth: 640, p: { xs: 3, sm: 4 }, border: "1px solid", borderColor: "divider", borderRadius: 3 }
+      }
     >
       <Stack direction="row" spacing={1} sx={{ alignItems: "center", mb: 3 }}>
         <IconButton aria-label="Cancel profile editing" onClick={onCancel} disabled={isSaving}>

@@ -21,6 +21,7 @@ import ErrorOutlineRoundedIcon from "@mui/icons-material/ErrorOutlineRounded";
 import type { Message, User } from "@/lib/types";
 import { AttachmentRenderer } from "./AttachmentRenderer";
 import { chatSurfaces } from "@/lib/theme/theme";
+import { openUserProfile } from "@/lib/profileNav";
 
 export interface MessageBubbleProps {
   message: Message;
@@ -68,7 +69,14 @@ export function MessageBubble({
             src={sender.avatarUrl || undefined}
             alt=""
             slotProps={{ img: { loading: "lazy", decoding: "async" } }}
-            sx={{ width: 32, height: 32, bgcolor: chatSurfaces.raised, fontSize: 13 }}
+            onClick={sender.id ? () => openUserProfile(sender.id) : undefined}
+            sx={{
+              width: 32,
+              height: 32,
+              bgcolor: chatSurfaces.raised,
+              fontSize: 13,
+              cursor: sender.id ? "pointer" : "default",
+            }}
           >
             {sender.displayName.charAt(0).toUpperCase()}
           </Avatar>
@@ -77,7 +85,18 @@ export function MessageBubble({
 
       <Stack sx={{ maxWidth: { xs: "78%", sm: "60%" }, alignItems: isOwnMessage ? "flex-end" : "flex-start" }}>
         {!isGroupedWithPrevious ? (
-          <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, px: 0.5, fontWeight: 500 }}>
+          <Typography
+            variant="caption"
+            color="text.secondary"
+            onClick={sender.id ? () => openUserProfile(sender.id) : undefined}
+            sx={{
+              mb: 0.5,
+              px: 0.5,
+              fontWeight: 500,
+              cursor: sender.id ? "pointer" : "default",
+              "&:hover": sender.id ? { textDecoration: "underline" } : undefined,
+            }}
+          >
             {sender.displayName}
           </Typography>
         ) : null}

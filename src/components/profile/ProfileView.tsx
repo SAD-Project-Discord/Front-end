@@ -13,22 +13,21 @@ interface ProfileViewProps {
   user: ProfileUser;
   onBack?: () => void;
   onEdit?: () => void;
+  /** Strip the outer card chrome (border/shadow/max-width) — used inside a Dialog that already provides it. */
+  embedded?: boolean;
 }
 
-export default function ProfileView({ user, onBack, onEdit }: ProfileViewProps) {
+export default function ProfileView({ user, onBack, onEdit, embedded = false }: ProfileViewProps) {
   const avatarFallback = user.name.trim().charAt(0).toUpperCase() || "?";
 
   return (
     <Card
       elevation={0}
-      sx={{
-        width: "100%",
-        maxWidth: 600,
-        p: { xs: 3, sm: 4 },
-        border: "1px solid",
-        borderColor: "divider",
-        borderRadius: 3,
-      }}
+      sx={
+        embedded
+          ? { width: "100%", p: 0, border: "none", boxShadow: "none", bgcolor: "transparent" }
+          : { width: "100%", maxWidth: 600, p: { xs: 3, sm: 4 }, border: "1px solid", borderColor: "divider", borderRadius: 3 }
+      }
     >
       {onBack || onEdit ? (
         <Stack direction="row" spacing={1} sx={{ alignItems: "center", justifyContent: "space-between", mb: 2 }}>
