@@ -2,7 +2,6 @@
 
 import { Box, InputAdornment, TextField, TextFieldProps, Typography } from "@mui/material";
 import { SvgIconComponent } from "@mui/icons-material";
-import { palette } from "@/theme/theme";
 
 interface IconTextFieldProps extends Omit<TextFieldProps, "label"> {
   label: string;
@@ -36,7 +35,7 @@ export default function IconTextField({ label, icon: Icon, id, slotProps, ...tex
           input: {
             startAdornment: (
               <InputAdornment position="start">
-                <Icon sx={{ fontSize: 20, color: palette.slateLight }} />
+                <Icon sx={{ fontSize: 20, color: "text.secondary" }} />
               </InputAdornment>
             ),
             ...slotProps?.input,

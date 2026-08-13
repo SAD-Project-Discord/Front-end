@@ -2,7 +2,6 @@
 
 import { Box, Typography } from "@mui/material";
 import { SvgIconComponent } from "@mui/icons-material";
-import { palette } from "@/theme/theme";
 
 interface AuthHeaderProps {
   icon: SvgIconComponent;
@@ -18,7 +17,8 @@ export default function AuthHeader({ icon: Icon, title, subtitle }: AuthHeaderPr
           width: 56,
           height: 56,
           borderRadius: "50%",
-          border: `2px solid ${palette.slateLight}`,
+          border: "2px solid",
+          borderColor: "divider",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -26,9 +26,9 @@ export default function AuthHeader({ icon: Icon, title, subtitle }: AuthHeaderPr
           mb: 1.5,
         }}
       >
-        <Icon sx={{ fontSize: 30, color: palette.slateLight }} />
+        <Icon sx={{ fontSize: 30, color: "text.secondary" }} />
       </Box>
-      <Typography variant="h1" component="h1" gutterBottom={false}>
+      <Typography variant="h6" component="h1" sx={{ fontWeight: 700 }}>
         {title}
       </Typography>
       <Typography variant="body2" sx={{ mt: 0.5 }}>

@@ -1,28 +1,36 @@
 "use client";
 
 import { Box } from "@mui/material";
-import { palette } from "@/theme/theme";
 
 /**
- * Full-viewport backdrop: soft lavender wash with a faint dot grid,
- * plus the thin near-black bar along the very top edge from the mock.
- * Centers whatever's passed as children (the auth card).
+ * Full-viewport backdrop for the auth pages. Uses the app's theme background
+ * so it matches dark mode. By default it's locked to the viewport height so
+ * the page doesn't scroll; pass `scrollable` for taller forms (e.g. Register)
+ * that may not fit on smaller screens.
  */
-export default function AuthBackground({ children }: { children: React.ReactNode }) {
+export default function AuthBackground({
+  children,
+  scrollable = false,
+}: {
+  children: React.ReactNode;
+  scrollable?: boolean;
+}) {
   return (
     <Box
       sx={{
+        height: scrollable ? "auto" : "100vh",
         minHeight: "100vh",
         width: "100%",
-        bgcolor: palette.backdrop,
-        backgroundImage: `radial-gradient(${palette.backdropDot} 1px, transparent 1px)`,
+        overflow: scrollable ? "auto" : "hidden",
+        bgcolor: "background.default",
+        backgroundImage: (theme) =>
+          `radial-gradient(${theme.palette.divider} 1px, transparent 1px)`,
         backgroundSize: "28px 28px",
-        borderTop: `6px solid ${palette.ink}`,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         px: 2,
-        py: 6,
+        py: 2,
       }}
     >
       {children}
