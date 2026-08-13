@@ -25,6 +25,7 @@ import {
   Typography,
 } from "@mui/material";
 import {
+  AdminPanelSettingsRounded,
   CloseRounded,
   DeleteOutlineRounded,
   PersonAddAltRounded,
@@ -34,8 +35,10 @@ import {
 import { observer } from "mobx-react-lite";
 import AddMembersModal from "@/components/members/AddMembersModal";
 import { InviteLinkSection } from "@/components/members/InviteLinkSection";
+import ChannelRolesPanel from "@/components/channel/ChannelRolesPanel";
+import MemberRolesPopover from "@/components/channel/MemberRolesPopover";
 import channelStore from "@/stores/ChannelStore";
-import type { Channel, UpdateChannelRequest } from "@/types/channel";
+import type { Channel, ChannelMember, UpdateChannelRequest } from "@/types/channel";
 
 interface ChannelSettingsModalProps {
   open: boolean;
@@ -60,6 +63,13 @@ function ChannelSettingsModal({
   const [addMembersOpen, setAddMembersOpen] = useState(false);
   const [confirmActionOpen, setConfirmActionOpen] = useState(false);
   const [actionWorking, setActionWorking] = useState(false);
+  const [rolesMemberAnchor, setRolesMemberAnchor] = useState<{
+    element: HTMLElement;
+    userId: string;
+  } | null>(null);
+  const rolesMember: ChannelMember | undefined = rolesMemberAnchor
+    ? channelStore.channelMembers.find((m) => m.user_id === rolesMemberAnchor.userId)
+    : undefined;
 
   const isOwner = channel.creator_id === currentUserId;
   const trimmedName = name.trim();
@@ -78,8 +88,10 @@ function ChannelSettingsModal({
     channelStore.setChannelsError(null);
     channelStore.clearChannelSettingsError();
     channelStore.clearChannelMemberActionError();
+    channelStore.clearRoleActionError();
     channelStore.clearInviteLink();
     channelStore.loadChannelMembers(channel.id);
+    channelStore.loadChannelRoles(channel.id);
   }, [open, channel.id]);
 
   function resetForm() {
@@ -106,6 +118,7 @@ function ChannelSettingsModal({
     resetForm();
     setAddMembersOpen(false);
     setConfirmActionOpen(false);
+    setRolesMemberAnchor(null);
     onClose();
   }
 
@@ -348,36 +361,84 @@ function ChannelSettingsModal({
                         key={member.user_id}
                         sx={{ borderBottom: "1px solid", borderColor: "divider" }}
                         secondaryAction={
-                          isOwner && member.user_id !== currentUserId ? (
-                            <Tooltip title={`Remove ${member.name}`}>
-                              <IconButton
-                                edge="end"
-                                size="small"
-                                color="error"
-                                disabled={isWorking}
-                                onClick={() => handleRemoveMember(member.user_id)}
-                                aria-label={`Remove ${member.name}`}
-                              >
-                                <PersonRemoveRounded fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                          ) : null
+                          <Stack direction="row" spacing={0.5}>
+                            {isOwner && member.user_id !== currentUserId ? (
+                              <Tooltip title={`Edit roles for ${member.name}`}>
+                                <IconButton
+                                  edge="end"
+                                  size="small"
+                                  disabled={isWorking}
+                                  onClick={(event) =>
+                                    setRolesMemberAnchor({ element: event.currentTarget, userId: member.user_id })
+                                  }
+                                  aria-label={`Edit roles for ${member.name}`}
+                                >
+                                  <AdminPanelSettingsRounded fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            ) : null}
+                            {isOwner && member.user_id !== currentUserId ? (
+                              <Tooltip title={`Remove ${member.name}`}>
+                                <IconButton
+                                  edge="end"
+                                  size="small"
+                                  color="error"
+                                  disabled={isWorking}
+                                  onClick={() => handleRemoveMember(member.user_id)}
+                                  aria-label={`Remove ${member.name}`}
+                                >
+                                  <PersonRemoveRounded fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            ) : null}
+                          </Stack>
                         }
                       >
                         <ListItemAvatar>
                           <Avatar>{member.name.trim().charAt(0).toUpperCase() || "?"}</Avatar>
                         </ListItemAvatar>
-                        <ListItemText primary={member.name} secondary={`@${member.username}`} />
-                        <Chip label={member.role === "owner" ? "Owner" : "Member"} size="small" sx={{ mr: 1 }} />
+                        <ListItemText
+                          primary={member.name}
+                          secondary={
+                            member.custom_roles.length > 0
+                              ? `@${member.username} · ${member.custom_roles
+                                  .map(
+                                    (id) =>
+                                      channelStore.channelRoles.find((r) => r.id === id)?.name ?? id,
+                                  )
+                                  .join(", ")}`
+                              : `@${member.username}`
+                          }
+                        />
+                        <Chip
+                          label={
+                            member.role === "owner" ? "Owner" : member.role === "admin" ? "Admin" : "Member"
+                          }
+                          size="small"
+                          sx={{ mr: 1 }}
+                        />
                       </ListItem>
                     ))}
                   </List>
                 )}
               </Box>
+
+              <Divider sx={{ my: 3 }} />
+
+              <ChannelRolesPanel channelId={channel.id} isOwner={isOwner} />
             </Box>
           </Box>
         </DialogContent>
       </Dialog>
+
+      {rolesMemberAnchor && rolesMember ? (
+        <MemberRolesPopover
+          channelId={channel.id}
+          member={rolesMember}
+          anchorEl={rolesMemberAnchor.element}
+          onClose={() => setRolesMemberAnchor(null)}
+        />
+      ) : null}
 
       <Dialog
         open={confirmActionOpen}

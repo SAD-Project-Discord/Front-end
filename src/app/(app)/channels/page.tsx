@@ -19,6 +19,7 @@ import CircularProgress from "@mui/material/CircularProgress";
 import AddRounded from "@mui/icons-material/AddRounded";
 import TagRounded from "@mui/icons-material/TagRounded";
 import KeyboardDoubleArrowDownRounded from "@mui/icons-material/KeyboardDoubleArrowDownRounded";
+import PublicRounded from "@mui/icons-material/PublicRounded";
 import ScheduleSendRounded from "@mui/icons-material/ScheduleSendRounded";
 import SettingsRounded from "@mui/icons-material/SettingsRounded";
 import TravelExploreRounded from "@mui/icons-material/TravelExploreRounded";
@@ -46,6 +47,8 @@ import { MessageList } from "@/components/chat/MessageList";
 import { SearchOverlay, type MessageSearchResultItem } from "@/components/chat/SearchOverlay";
 import CreateChannelModal from "@/components/channel/CreateChannelModal";
 import ChannelSettingsModal from "@/components/channel/ChannelSettingsModal";
+import ChannelThreadsBar from "@/components/channel/ChannelThreadsBar";
+import DiscoverChannelsDialog from "@/components/channel/DiscoverChannelsDialog";
 
 const PAGE_SIZE = 30;
 const TYPING_STOP_DELAY_MS = 2000;
@@ -71,6 +74,7 @@ function ChannelsPage() {
   const currentUser = authStore.user;
 
   const [activeChannelId, setActiveChannelId] = useState<string | undefined>(undefined);
+  const [activeTopicId, setActiveTopicId] = useState<string | undefined>(undefined);
   const [messages, setMessages] = useState<Message[]>([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [loadingOlder, setLoadingOlder] = useState(false);
@@ -83,6 +87,7 @@ function ChannelsPage() {
   const [typingNames, setTypingNames] = useState<Map<string, string>>(new Map());
 
   const [createOpen, setCreateOpen] = useState(false);
+  const [discoverOpen, setDiscoverOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
@@ -91,6 +96,7 @@ function ChannelsPage() {
   const [toast, setToast] = useState<{ message: string; severity: "error" | "success" } | null>(null);
 
   const activeChannelIdRef = useRef<string | undefined>(undefined);
+  const activeTopicIdRef = useRef<string | undefined>(undefined);
   const currentUserIdRef = useRef<string | undefined>(undefined);
   const pendingHighlightRef = useRef<string | null>(null);
   const typingClearTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
@@ -102,6 +108,9 @@ function ChannelsPage() {
     activeChannelIdRef.current = activeChannelId;
   }, [activeChannelId]);
   useEffect(() => {
+    activeTopicIdRef.current = activeTopicId;
+  }, [activeTopicId]);
+  useEffect(() => {
     currentUserIdRef.current = currentUser?.id;
   }, [currentUser]);
 
@@ -109,6 +118,12 @@ function ChannelsPage() {
     () => channelStore.myChannels.find((c) => c.id === activeChannelId),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [channelStore.myChannels, activeChannelId],
+  );
+
+  const activeTopic = useMemo(
+    () => channelStore.channelTopics.find((t) => t.id === activeTopicId),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [channelStore.channelTopics, activeTopicId],
   );
 
   const participantsById = useMemo(() => {
@@ -140,16 +155,19 @@ function ChannelsPage() {
 
     chatWs.connect();
 
+    function isForActiveThread(data: ApiMessage): boolean {
+      if (data.channel_id !== activeChannelIdRef.current) return false;
+      return (data.topic_id ?? undefined) === activeTopicIdRef.current;
+    }
+
     function handleMessageNew(data: ApiMessage) {
-      if (!data.channel_id) return;
+      if (!data.channel_id || !isForActiveThread(data)) return;
       const mapped = apiMessageToMessage(data);
-      if (data.channel_id === activeChannelIdRef.current) {
-        setMessages((prev) => mergeMessage(prev, mapped));
-      }
+      setMessages((prev) => mergeMessage(prev, mapped));
     }
 
     function handleMessageUpdated(data: ApiMessage) {
-      if (!data.channel_id || data.channel_id !== activeChannelIdRef.current) return;
+      if (!data.channel_id || !isForActiveThread(data)) return;
       setMessages((prev) => mergeMessage(prev, apiMessageToMessage(data)));
     }
 
@@ -228,11 +246,11 @@ function ChannelsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser?.id]);
 
-  const fetchInitialPage = useCallback((channelId: string) => {
+  const fetchInitialPage = useCallback((channelId: string, topicId: string | undefined) => {
     setLoadingMessages(true);
     setIsViewingSearchContext(false);
     messagesApi
-      .getChannelMessages(channelId, PAGE_SIZE)
+      .getChannelMessages(channelId, PAGE_SIZE, undefined, topicId)
       .then((res) => {
         const mapped = res.data.map(apiMessageToMessage).sort(byCreatedAtAsc);
         setMessages(mapped);
@@ -249,31 +267,47 @@ function ChannelsPage() {
   }, []);
 
   const activateChannel = useCallback(
-    (channelId: string) => {
+    (channelId: string, topicId: string | undefined) => {
       setMessages([]);
       setHasMoreOlder(false);
       setTypingNames(new Map());
       setHighlightMessageId(undefined);
-      chatWs.subscribeToRoom({ type: "channel", target_id: channelId });
-      fetchInitialPage(channelId);
-      channelStore.loadChannelMembers(channelId);
+      chatWs.subscribeToRoom({ type: "channel", target_id: channelId, topic_id: topicId });
+      fetchInitialPage(channelId, topicId);
     },
     [fetchInitialPage],
   );
 
-  // ---- load a channel's messages + members when the active channel changes ----
+  // ---- load a channel's members and land on its general (threadless) chat when the active channel changes ----
   useEffect(() => {
     if (!activeChannelId) return;
     // Synchronizing to an external system (the WS room subscription) plus
     // the view state that goes with switching channels — a legitimate effect,
     // not state derivable from render.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    activateChannel(activeChannelId);
+    setActiveTopicId(undefined);
+    activateChannel(activeChannelId, undefined);
+    channelStore.loadChannelMembers(activeChannelId);
     return () => {
-      chatWs.unsubscribeFromRoom({ type: "channel", target_id: activeChannelId });
+      chatWs.unsubscribeFromRoom({ type: "channel", target_id: activeChannelId, topic_id: activeTopicIdRef.current });
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeChannelId]);
+
+  // ---- switch between the channel's general chat and one of its threads ----
+  const handleSelectTopic = useCallback(
+    (topicId: string | undefined) => {
+      if (!activeChannelId || topicId === activeTopicIdRef.current) return;
+      chatWs.unsubscribeFromRoom({
+        type: "channel",
+        target_id: activeChannelId,
+        topic_id: activeTopicIdRef.current,
+      });
+      setActiveTopicId(topicId);
+      activateChannel(activeChannelId, topicId);
+    },
+    [activeChannelId, activateChannel],
+  );
 
   // ---- lazily resolve avatars for members (not included in the members payload) ----
   useEffect(() => {
@@ -305,7 +339,7 @@ function ChannelsPage() {
     const oldest = messages[0];
     setLoadingOlder(true);
     messagesApi
-      .getChannelMessages(activeChannelId, PAGE_SIZE, oldest.id)
+      .getChannelMessages(activeChannelId, PAGE_SIZE, oldest.id, activeTopicId)
       .then((res) => {
         const mapped = res.data.map(apiMessageToMessage).sort(byCreatedAtAsc);
         setMessages((prev) => [...mapped, ...prev]);
@@ -313,11 +347,11 @@ function ChannelsPage() {
       })
       .catch(() => setToast({ message: "Couldn't load older messages.", severity: "error" }))
       .finally(() => setLoadingOlder(false));
-  }, [activeChannelId, messages, loadingOlder, hasMoreOlder]);
+  }, [activeChannelId, activeTopicId, messages, loadingOlder, hasMoreOlder]);
 
   const handleTypingKeystroke = useCallback(() => {
     if (!activeChannelId) return;
-    const room = { type: "channel" as const, target_id: activeChannelId };
+    const room = { type: "channel" as const, target_id: activeChannelId, topic_id: activeTopicId };
     if (!isTypingSentRef.current) {
       isTypingSentRef.current = true;
       chatWs.sendTypingIndicator(room, true);
@@ -327,7 +361,7 @@ function ChannelsPage() {
       isTypingSentRef.current = false;
       chatWs.sendTypingIndicator(room, false);
     }, TYPING_STOP_DELAY_MS);
-  }, [activeChannelId]);
+  }, [activeChannelId, activeTopicId]);
 
   const handleSend = useCallback(
     (content: string, attachments: MessageAttachment[]) => {
@@ -358,6 +392,7 @@ function ChannelsPage() {
       messagesApi
         .sendMessage({
           channel_id: activeChannelId,
+          topic_id: activeTopicId,
           content,
           media_ids: attachments.length > 0 ? attachments.map((a) => a.id) : undefined,
         })
@@ -375,7 +410,7 @@ function ChannelsPage() {
         })
         .finally(() => setSending(false));
     },
-    [activeChannelId, currentUser],
+    [activeChannelId, activeTopicId, currentUser],
   );
 
   const handleScheduleSend = useCallback(
@@ -386,6 +421,7 @@ function ChannelsPage() {
       scheduledMessagesApi
         .create({
           channel_id: activeChannelId,
+          topic_id: activeTopicId,
           content,
           media_ids: attachments.length > 0 ? attachments.map((a) => a.id) : undefined,
           scheduled_at: scheduledAt.toISOString(),
@@ -399,7 +435,7 @@ function ChannelsPage() {
           setToast({ message, severity: "error" });
         });
     },
-    [activeChannelId],
+    [activeChannelId, activeTopicId],
   );
 
   const handleRetry = useCallback(
@@ -409,6 +445,7 @@ function ChannelsPage() {
       messagesApi
         .sendMessage({
           channel_id: activeChannelId,
+          topic_id: activeTopicId,
           content: message.content,
           media_ids: message.attachments.length > 0 ? message.attachments.map((a) => a.id) : undefined,
         })
@@ -421,7 +458,7 @@ function ChannelsPage() {
           setToast({ message: "Message failed to send.", severity: "error" });
         });
     },
-    [activeChannelId],
+    [activeChannelId, activeTopicId],
   );
 
   const handleEdit = useCallback((message: Message, newContent: string) => {
@@ -459,7 +496,7 @@ function ChannelsPage() {
 
     setLoadingMessages(true);
     try {
-      const res = await messagesApi.getChannelMessages(activeChannelId, PAGE_SIZE, result.id);
+      const res = await messagesApi.getChannelMessages(activeChannelId, PAGE_SIZE, result.id, activeTopicId);
       const older = res.data.map(apiMessageToMessage).sort(byCreatedAtAsc);
       const target: Message = {
         id: result.id,
@@ -567,6 +604,11 @@ function ChannelsPage() {
               <TravelExploreRounded fontSize="small" />
             </IconButton>
           </Tooltip>
+          <Tooltip title="Discover public channels">
+            <IconButton size="small" onClick={() => setDiscoverOpen(true)} aria-label="Discover public channels">
+              <PublicRounded fontSize="small" />
+            </IconButton>
+          </Tooltip>
           <Tooltip title="Scheduled messages">
             <IconButton size="small" onClick={() => router.push("/scheduled")} aria-label="Scheduled messages">
               <ScheduleSendRounded fontSize="small" />
@@ -632,7 +674,7 @@ function ChannelsPage() {
         {activeChannel ? (
           <>
             <ChatHeader
-              title={activeChannel.name}
+              title={activeTopic ? `${activeChannel.name} / ${activeTopic.name}` : activeChannel.name}
               subtitle={`${channelStore.channelMembers.length} members`}
               onBack={() => setActiveChannelId(undefined)}
               onToggleSearch={() => setSearchOpen((v) => !v)}
@@ -647,12 +689,19 @@ function ChannelsPage() {
               }
             />
 
+            <ChannelThreadsBar
+              channelId={activeChannel.id}
+              isOwner={activeChannel.creator_id === currentUser.id}
+              activeTopicId={activeTopicId}
+              onSelectTopic={handleSelectTopic}
+            />
+
             {isViewingSearchContext ? (
               <Stack direction="row" sx={{ justifyContent: "center", py: 1, bgcolor: "action.hover" }}>
                 <Button
                   size="small"
                   startIcon={<KeyboardDoubleArrowDownRounded fontSize="small" />}
-                  onClick={() => activeChannelId && fetchInitialPage(activeChannelId)}
+                  onClick={() => activeChannelId && fetchInitialPage(activeChannelId, activeTopicId)}
                 >
                   Back to latest messages
                 </Button>
@@ -681,7 +730,7 @@ function ChannelsPage() {
               onSchedule={handleScheduleSend}
               onTyping={handleTypingKeystroke}
               isSending={sending}
-              placeholder={`Message #${activeChannel.name}`}
+              placeholder={`Message #${activeTopic ? activeTopic.name : activeChannel.name}`}
             />
 
             <ChannelSettingsModal
@@ -699,11 +748,11 @@ function ChannelsPage() {
             <SearchOverlay
               open={searchOpen}
               onClose={() => setSearchOpen(false)}
-              title="This channel"
-              placeholder={`Search in ${activeChannel.name}`}
+              title={activeTopic ? `#${activeTopic.name}` : "This channel"}
+              placeholder={`Search in ${activeTopic ? activeTopic.name : activeChannel.name}`}
               showParticipant={false}
               onSearch={(query) =>
-                messagesApi.searchChannelMessages(activeChannelId!, query).then((res) =>
+                messagesApi.searchChannelMessages(activeChannelId!, query, 20, activeTopicId).then((res) =>
                   res.data.map((m) => ({
                     id: m.id,
                     content: m.content,
@@ -731,6 +780,14 @@ function ChannelsPage() {
         open={createOpen}
         onClose={() => setCreateOpen(false)}
         onCreated={(channel: Channel) => {
+          setActiveChannelId(channel.id);
+        }}
+      />
+
+      <DiscoverChannelsDialog
+        open={discoverOpen}
+        onClose={() => setDiscoverOpen(false)}
+        onJoined={(channel: Channel) => {
           setActiveChannelId(channel.id);
         }}
       />

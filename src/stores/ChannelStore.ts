@@ -1,7 +1,19 @@
 import { makeAutoObservable, runInAction } from "mobx";
 
 import channelService from "@/services/channel.service";
-import type { Channel, ChannelMember, CreateChannelRequest, UpdateChannelRequest } from "@/types/channel";
+import type {
+  Channel,
+  ChannelAccessRole,
+  ChannelMember,
+  ChannelRole,
+  ChannelTopic,
+  CreateAccessRoleRequest,
+  CreateChannelRequest,
+  CreateTopicRequest,
+  UpdateAccessRoleRequest,
+  UpdateChannelRequest,
+  UpdateTopicRequest,
+} from "@/types/channel";
 
 function getErrorMessage(error: unknown, fallback: string): string {
   const responseMessage =
@@ -39,6 +51,39 @@ class ChannelStore {
 
   inviteLinkError: string | null = null;
 
+  channelRoles: ChannelAccessRole[] = [];
+
+  channelRolesLoading = false;
+
+  channelRolesError: string | null = null;
+
+  isSavingRole = false;
+
+  roleActionError: string | null = null;
+
+  channelTopics: ChannelTopic[] = [];
+
+  channelTopicsLoading = false;
+
+  channelTopicsError: string | null = null;
+
+  isSavingTopic = false;
+
+  topicActionError: string | null = null;
+
+  // -------------------------------------------------------------------
+  // Public channel discovery/join. These call backend endpoints that
+  // don't exist yet — see docs/BACKEND_REQUIREMENTS.md.
+  // -------------------------------------------------------------------
+
+  publicChannels: Channel[] = [];
+
+  publicChannelsLoading = false;
+
+  publicChannelsError: string | null = null;
+
+  isJoiningChannel = false;
+
   constructor() {
     makeAutoObservable(this);
   }
@@ -53,6 +98,14 @@ class ChannelStore {
 
   clearChannelMemberActionError() {
     this.membersActionError = null;
+  }
+
+  clearRoleActionError() {
+    this.roleActionError = null;
+  }
+
+  clearTopicActionError() {
+    this.topicActionError = null;
   }
 
   get myChannelMemberIds(): string[] {
@@ -261,6 +314,292 @@ class ChannelStore {
   clearInviteLink() {
     this.inviteLink = null;
     this.inviteLinkError = null;
+  }
+
+  /** Owner-only: promote/demote a non-owner member between admin and member. */
+  async updateMemberRole(channelId: string, userId: string, role: ChannelRole): Promise<boolean> {
+    if (role === "owner") return false;
+
+    this.membersActionError = null;
+    try {
+      const response = await channelService.updateMemberRole(channelId, userId, { role });
+      runInAction(() => {
+        this.channelMembers = this.channelMembers.map((m) =>
+          m.user_id === userId ? response.data : m,
+        );
+      });
+      return true;
+    } catch (error: unknown) {
+      runInAction(() => {
+        this.membersActionError = getErrorMessage(error, "Could not update member role.");
+      });
+      return false;
+    }
+  }
+
+  async loadChannelRoles(channelId: string): Promise<void> {
+    this.channelRolesLoading = true;
+    this.channelRolesError = null;
+
+    try {
+      const response = await channelService.listRoles(channelId);
+      runInAction(() => {
+        this.channelRoles = response.data;
+      });
+    } catch (error: unknown) {
+      runInAction(() => {
+        this.channelRoles = [];
+        this.channelRolesError = getErrorMessage(error, "Could not load roles.");
+      });
+    } finally {
+      runInAction(() => {
+        this.channelRolesLoading = false;
+      });
+    }
+  }
+
+  async createChannelRole(
+    channelId: string,
+    payload: CreateAccessRoleRequest,
+  ): Promise<ChannelAccessRole | null> {
+    this.isSavingRole = true;
+    this.roleActionError = null;
+
+    try {
+      const response = await channelService.createRole(channelId, payload);
+      runInAction(() => {
+        this.channelRoles = [...this.channelRoles, response.data];
+      });
+      return response.data;
+    } catch (error: unknown) {
+      runInAction(() => {
+        this.roleActionError = getErrorMessage(error, "Could not create role.");
+      });
+      return null;
+    } finally {
+      runInAction(() => {
+        this.isSavingRole = false;
+      });
+    }
+  }
+
+  async updateChannelRole(
+    channelId: string,
+    roleId: string,
+    payload: UpdateAccessRoleRequest,
+  ): Promise<ChannelAccessRole | null> {
+    this.isSavingRole = true;
+    this.roleActionError = null;
+
+    try {
+      const response = await channelService.updateRole(channelId, roleId, payload);
+      runInAction(() => {
+        this.channelRoles = this.channelRoles.map((r) => (r.id === roleId ? response.data : r));
+      });
+      return response.data;
+    } catch (error: unknown) {
+      runInAction(() => {
+        this.roleActionError = getErrorMessage(error, "Could not update role.");
+      });
+      return null;
+    } finally {
+      runInAction(() => {
+        this.isSavingRole = false;
+      });
+    }
+  }
+
+  async deleteChannelRole(channelId: string, roleId: string): Promise<boolean> {
+    this.roleActionError = null;
+
+    try {
+      await channelService.deleteRole(channelId, roleId);
+      runInAction(() => {
+        this.channelRoles = this.channelRoles.filter((r) => r.id !== roleId);
+        this.channelMembers = this.channelMembers.map((m) => ({
+          ...m,
+          custom_roles: m.custom_roles.filter((id) => id !== roleId),
+        }));
+      });
+      return true;
+    } catch (error: unknown) {
+      runInAction(() => {
+        this.roleActionError = getErrorMessage(error, "Could not delete role.");
+      });
+      return false;
+    }
+  }
+
+  async assignRoleToMember(channelId: string, userId: string, roleId: string): Promise<boolean> {
+    this.membersActionError = null;
+
+    try {
+      const response = await channelService.assignRole(channelId, userId, roleId);
+      runInAction(() => {
+        this.channelMembers = this.channelMembers.map((m) =>
+          m.user_id === userId ? response.data : m,
+        );
+      });
+      return true;
+    } catch (error: unknown) {
+      runInAction(() => {
+        this.membersActionError = getErrorMessage(error, "Could not assign role.");
+      });
+      return false;
+    }
+  }
+
+  async removeRoleFromMember(channelId: string, userId: string, roleId: string): Promise<boolean> {
+    this.membersActionError = null;
+
+    try {
+      const response = await channelService.unassignRole(channelId, userId, roleId);
+      runInAction(() => {
+        this.channelMembers = this.channelMembers.map((m) =>
+          m.user_id === userId ? response.data : m,
+        );
+      });
+      return true;
+    } catch (error: unknown) {
+      runInAction(() => {
+        this.membersActionError = getErrorMessage(error, "Could not remove role.");
+      });
+      return false;
+    }
+  }
+
+  async loadChannelTopics(channelId: string): Promise<void> {
+    this.channelTopicsLoading = true;
+    this.channelTopicsError = null;
+
+    try {
+      const response = await channelService.listTopics(channelId);
+      runInAction(() => {
+        this.channelTopics = response.data;
+      });
+    } catch (error: unknown) {
+      runInAction(() => {
+        this.channelTopics = [];
+        this.channelTopicsError = getErrorMessage(error, "Could not load threads.");
+      });
+    } finally {
+      runInAction(() => {
+        this.channelTopicsLoading = false;
+      });
+    }
+  }
+
+  async createChannelTopic(
+    channelId: string,
+    payload: CreateTopicRequest,
+  ): Promise<ChannelTopic | null> {
+    this.isSavingTopic = true;
+    this.topicActionError = null;
+
+    try {
+      const response = await channelService.createTopic(channelId, payload);
+      runInAction(() => {
+        this.channelTopics = [...this.channelTopics, response.data];
+      });
+      return response.data;
+    } catch (error: unknown) {
+      runInAction(() => {
+        this.topicActionError = getErrorMessage(error, "Could not create thread.");
+      });
+      return null;
+    } finally {
+      runInAction(() => {
+        this.isSavingTopic = false;
+      });
+    }
+  }
+
+  async updateChannelTopic(
+    channelId: string,
+    topicId: string,
+    payload: UpdateTopicRequest,
+  ): Promise<ChannelTopic | null> {
+    this.isSavingTopic = true;
+    this.topicActionError = null;
+
+    try {
+      const response = await channelService.updateTopic(channelId, topicId, payload);
+      runInAction(() => {
+        this.channelTopics = this.channelTopics.map((t) => (t.id === topicId ? response.data : t));
+      });
+      return response.data;
+    } catch (error: unknown) {
+      runInAction(() => {
+        this.topicActionError = getErrorMessage(error, "Could not update thread.");
+      });
+      return null;
+    } finally {
+      runInAction(() => {
+        this.isSavingTopic = false;
+      });
+    }
+  }
+
+  async deleteChannelTopic(channelId: string, topicId: string): Promise<boolean> {
+    this.topicActionError = null;
+
+    try {
+      await channelService.deleteTopic(channelId, topicId);
+      runInAction(() => {
+        this.channelTopics = this.channelTopics.filter((t) => t.id !== topicId);
+      });
+      return true;
+    } catch (error: unknown) {
+      runInAction(() => {
+        this.topicActionError = getErrorMessage(error, "Could not delete thread.");
+      });
+      return false;
+    }
+  }
+
+  async searchPublicChannels(query: string): Promise<void> {
+    this.publicChannelsLoading = true;
+    this.publicChannelsError = null;
+
+    try {
+      const response = await channelService.listPublicChannels(query);
+      runInAction(() => {
+        this.publicChannels = response.data;
+      });
+    } catch (error: unknown) {
+      runInAction(() => {
+        this.publicChannels = [];
+        this.publicChannelsError = getErrorMessage(error, "Could not search public channels.");
+      });
+    } finally {
+      runInAction(() => {
+        this.publicChannelsLoading = false;
+      });
+    }
+  }
+
+  async joinPublicChannel(channelId: string): Promise<Channel | null> {
+    this.isJoiningChannel = true;
+    this.publicChannelsError = null;
+
+    try {
+      const response = await channelService.joinChannel(channelId);
+      runInAction(() => {
+        if (!this.myChannels.some((c) => c.id === response.data.id)) {
+          this.myChannels = [response.data, ...this.myChannels];
+        }
+      });
+      return response.data;
+    } catch (error: unknown) {
+      runInAction(() => {
+        this.publicChannelsError = getErrorMessage(error, "Could not join that channel.");
+      });
+      return null;
+    } finally {
+      runInAction(() => {
+        this.isJoiningChannel = false;
+      });
+    }
   }
 }
 

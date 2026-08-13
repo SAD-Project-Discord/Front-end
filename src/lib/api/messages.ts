@@ -153,12 +153,17 @@ export const messagesApi = {
   },
 
   /**
-   * Search message content/captions within a single channel.
+   * Search message content/captions within a single channel, optionally scoped to a topic.
    */
-  searchChannelMessages: (channelId: string, query: string, limit: number = 20): Promise<ScopedSearchResponse> => {
-    return fetchApi<ScopedSearchResponse>(
-      `/messages/channels/${channelId}/search/?q=${encodeURIComponent(query)}&limit=${limit}`,
-    );
+  searchChannelMessages: (
+    channelId: string,
+    query: string,
+    limit: number = 20,
+    topicId?: string,
+  ): Promise<ScopedSearchResponse> => {
+    let url = `/messages/channels/${channelId}/search/?q=${encodeURIComponent(query)}&limit=${limit}`;
+    if (topicId) url += `&topic_id=${topicId}`;
+    return fetchApi<ScopedSearchResponse>(url);
   },
 
   /**
