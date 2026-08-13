@@ -57,7 +57,7 @@ export default function ProfileView({ user, onBack, onEdit, embedded = false }: 
           {avatarFallback}
         </Avatar>
 
-        <Typography component="h1" variant="h1">
+        <Typography component="h1" variant="h1" sx={{ fontSize: "1.25rem", fontWeight: 700 }}>
           {user.name}
         </Typography>
         <Typography color="text.secondary">@{user.username}</Typography>

@@ -43,6 +43,8 @@ import type { Message, MessageAttachment, User } from "@/lib/types";
 import { messagesApi } from "@/lib/api/messages";
 import type { ApiMessage } from "@/lib/api/messages";
 import { scheduledMessagesApi } from "@/lib/api/scheduledMessages";
+import ScheduledMessagesDialog from "@/components/chat/ScheduledMessagesDialog";
+
 import { ApiError } from "@/lib/api/api";
 import { usersApi } from "@/lib/api/users";
 import { chatWs } from "@/lib/api/chat";
@@ -101,6 +103,7 @@ function GroupsPage() {
 
   const [createOpen, setCreateOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [scheduledOpen, setScheduledOpen] = useState(false);
   const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
   const [confirmLeaveOpen, setConfirmLeaveOpen] = useState(false);
   const [leaveActionWorking, setLeaveActionWorking] = useState(false);
@@ -651,12 +654,12 @@ function GroupsPage() {
             </IconButton>
           </Tooltip>
           <Tooltip title="Scheduled messages">
-            <IconButton size="small" onClick={() => router.push("/scheduled")} aria-label="Scheduled messages">
+            <IconButton size="small" onClick={() => setScheduledOpen(true)} aria-label="Scheduled messages">
               <ScheduleSendRounded fontSize="small" />
             </IconButton>
           </Tooltip>
           <Tooltip title="Settings & Privacy">
-            <IconButton size="small" onClick={() => router.push("/settings")} aria-label="Settings & Privacy">
+            <IconButton size="small" onClick={() => openUserProfile(currentUser?.id ?? "")} aria-label="Settings & Privacy">
               <SettingsRounded fontSize="small" />
             </IconButton>
           </Tooltip>
@@ -929,6 +932,7 @@ function GroupsPage() {
           </Alert>
         ) : undefined}
       </Snackbar>
+      <ScheduledMessagesDialog open={scheduledOpen} onClose={() => setScheduledOpen(false)} />
     </Box>
   );
 }
