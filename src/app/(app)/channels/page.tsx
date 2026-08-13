@@ -570,7 +570,7 @@ function ChannelsPage() {
       {/* Sidebar */}
       <Box
         sx={{
-          width: { xs: "100%", md: 340 },
+          width: { xs: "100%", md: 380 },
           flexShrink: 0,
           display: { xs: isConversationOpen ? "none" : "flex", md: "flex" },
           flexDirection: "column",
@@ -579,7 +579,7 @@ function ChannelsPage() {
           bgcolor: chatSurfaces.sidebar,
         }}
       >
-        <Stack direction="row" spacing={1} sx={{ alignItems: "center", px: 2, pt: 2, pb: 1.5 }}>
+        <Stack direction="row" spacing={0.5} sx={{ alignItems: "center", px: 2, pt: 2, pb: 1.5 }}>
           <Tooltip title="Your profile">
             <IconButton
               size="small"
@@ -596,7 +596,7 @@ function ChannelsPage() {
               </Avatar>
             </IconButton>
           </Tooltip>
-          <Typography variant="subtitle1" sx={{ fontWeight: 700, flex: 1 }} noWrap>
+          <Typography variant="subtitle1" sx={{ fontWeight: 700, flex: 1, minWidth: 0 }} noWrap>
             Channels
           </Typography>
           <Tooltip title="Search all messages">

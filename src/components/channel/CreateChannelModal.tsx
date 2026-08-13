@@ -198,7 +198,6 @@ function CreateChannelModal({ open, onClose, onCreated }: CreateChannelModalProp
               type="submit"
               variant="contained"
               color="primary"
-              size="large"
               fullWidth
               disabled={channelStore.isLoadingChannels}
               endIcon={<ArrowForward fontSize="small" />}

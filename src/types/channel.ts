@@ -34,12 +34,19 @@ export interface ChannelsResponse {
   data: Channel[];
 }
 
+/** Custom role as embedded in a `ChannelMember` (subset of `ChannelAccessRole`). */
+export interface MemberCustomRole {
+  id: string;
+  name: string;
+  permissions: ChannelPermission[];
+}
+
 export interface ChannelMember {
   user_id: string;
   username: string;
   name: string;
   role: ChannelRole;
-  custom_roles: string[];
+  custom_roles: MemberCustomRole[];
   joined_at: string;
 }
 

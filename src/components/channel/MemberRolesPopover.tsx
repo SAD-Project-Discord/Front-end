@@ -82,7 +82,7 @@ function MemberRolesPopover({ channelId, member, anchorEl, onClose }: MemberRole
             </Typography>
           ) : (
             channelStore.channelRoles.map((role) => {
-              const assigned = member.custom_roles.includes(role.id);
+              const assigned = member.custom_roles.some((r) => r.id === role.id);
               return (
                 <FormControlLabel
                   key={role.id}

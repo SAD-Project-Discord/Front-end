@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
+import { useEffect, useState, type ChangeEvent, type FormEvent, type SyntheticEvent } from "react";
 import {
   Alert,
   Avatar,
@@ -20,6 +20,8 @@ import {
   ListItemText,
   Stack,
   Switch,
+  Tab,
+  Tabs,
   TextField,
   Tooltip,
   Typography,
@@ -48,6 +50,11 @@ interface ChannelSettingsModalProps {
   onLeftOrDeleted: () => void;
 }
 
+type SettingsTab = "general" | "members" | "roles";
+
+/** Fixed height for tab panel bodies so switching tabs doesn't jump the dialog around. */
+const PANEL_HEIGHT = 480;
+
 function ChannelSettingsModal({
   open,
   onClose,
@@ -55,6 +62,8 @@ function ChannelSettingsModal({
   currentUserId,
   onLeftOrDeleted,
 }: ChannelSettingsModalProps) {
+  const [activeTab, setActiveTab] = useState<SettingsTab>("general");
+  const [wasOpen, setWasOpen] = useState(false);
   const [name, setName] = useState(channel.name);
   const [description, setDescription] = useState(channel.description);
   const [isPrivate, setIsPrivate] = useState(channel.is_private);
@@ -63,6 +72,8 @@ function ChannelSettingsModal({
   const [addMembersOpen, setAddMembersOpen] = useState(false);
   const [confirmActionOpen, setConfirmActionOpen] = useState(false);
   const [actionWorking, setActionWorking] = useState(false);
+  const [removeMemberTarget, setRemoveMemberTarget] = useState<ChannelMember | null>(null);
+  const [isRemovingMember, setIsRemovingMember] = useState(false);
   const [rolesMemberAnchor, setRolesMemberAnchor] = useState<{
     element: HTMLElement;
     userId: string;
@@ -83,6 +94,13 @@ function ChannelSettingsModal({
     channelStore.isSavingChannel ||
     channelStore.isSubmittingMembers;
 
+  if (open && !wasOpen) {
+    setActiveTab("general");
+  }
+  if (open !== wasOpen) {
+    setWasOpen(open);
+  }
+
   useEffect(() => {
     if (!open) return;
     channelStore.setChannelsError(null);
@@ -102,13 +120,11 @@ function ChannelSettingsModal({
     setSaved(false);
   }
 
-  function handleFieldChange(
-    setter: (value: string) => void,
-  ) {
+  function handleFieldChange(setter: (value: string) => void) {
     return (event: ChangeEvent<HTMLInputElement>) => {
       setter(event.target.value);
-      setFormError(null);
       setSaved(false);
+      if (formError) setFormError(null);
       channelStore.clearChannelSettingsError();
     };
   }
@@ -119,28 +135,25 @@ function ChannelSettingsModal({
     setAddMembersOpen(false);
     setConfirmActionOpen(false);
     setRolesMemberAnchor(null);
+    setRemoveMemberTarget(null);
     onClose();
   }
 
   async function handleSave(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setSaved(false);
-    setFormError(null);
 
     if (!trimmedName) {
       setFormError("Channel name is required.");
       return;
     }
-    if (!isOwner || !hasChanges) return;
-    if (trimmedName.length > 100) {
-      setFormError("Channel name must be 100 characters or fewer.");
-      return;
-    }
+    setFormError(null);
 
     const payload: UpdateChannelRequest = {};
     if (trimmedName !== channel.name) payload.name = trimmedName;
     if (trimmedDescription !== channel.description) payload.description = trimmedDescription;
     if (isPrivate !== channel.is_private) payload.is_private = isPrivate;
+
+    if (Object.keys(payload).length === 0) return;
 
     const updated = await channelStore.updateChannelInfo(channel.id, payload);
     if (updated) {
@@ -151,10 +164,12 @@ function ChannelSettingsModal({
     }
   }
 
-  async function handleRemoveMember(userId: string) {
-    setActionWorking(true);
-    await channelStore.removeChannelMember(channel.id, userId);
-    setActionWorking(false);
+  async function handleConfirmRemoveMember() {
+    if (!removeMemberTarget) return;
+    setIsRemovingMember(true);
+    await channelStore.removeChannelMember(channel.id, removeMemberTarget.user_id);
+    setIsRemovingMember(false);
+    setRemoveMemberTarget(null);
   }
 
   async function handleLeaveOrDelete() {
@@ -171,6 +186,10 @@ function ChannelSettingsModal({
     }
   }
 
+  function handleTabChange(_event: SyntheticEvent, value: SettingsTab) {
+    setActiveTab(value);
+  }
+
   return (
     <>
       <Dialog
@@ -178,7 +197,7 @@ function ChannelSettingsModal({
         onClose={isWorking ? undefined : handleClose}
         fullWidth
         maxWidth="md"
-        slotProps={{ paper: { sx: { borderRadius: 3, p: { xs: 1, sm: 1.5 } } } }}
+        slotProps={{ paper: { sx: { borderRadius: 3 } } }}
       >
         <DialogTitle sx={{ pb: 1 }}>
           <Stack direction="row" sx={{ alignItems: "flex-start", justifyContent: "space-between" }}>
@@ -196,126 +215,148 @@ function ChannelSettingsModal({
           </Stack>
         </DialogTitle>
 
-        <DialogContent>
+        <Tabs
+          value={activeTab}
+          onChange={handleTabChange}
+          sx={{ px: 3, borderBottom: 1, borderColor: "divider", minHeight: 40 }}
+        >
+          <Tab label="General" value="general" sx={{ minHeight: 40 }} />
+          <Tab label={`Members (${channelStore.channelMembers.length})`} value="members" sx={{ minHeight: 40 }} />
+          <Tab label={`Roles (${channelStore.channelRoles.length})`} value="roles" sx={{ minHeight: 40 }} />
+        </Tabs>
+
+        <DialogContent sx={{ p: 0 }}>
           {channelStore.channelsError ? (
-            <Alert severity="error" sx={{ mb: 2 }}>
+            <Alert severity="error" sx={{ m: 3, mb: 0 }}>
               {channelStore.channelsError}
             </Alert>
           ) : null}
 
-          <Box sx={{ display: "grid", gap: 3, gridTemplateColumns: { xs: "1fr", md: "360px 1fr" } }}>
-            <Stack spacing={3}>
-              <Box component="form" onSubmit={handleSave} noValidate>
-                <Stack spacing={2}>
-                  <TextField
-                    label="Channel name"
-                    value={name}
-                    onChange={handleFieldChange(setName)}
-                    required
-                    fullWidth
-                    disabled={!isOwner || isWorking}
-                    slotProps={{ htmlInput: { maxLength: 100 } }}
-                  />
-                  <TextField
-                    label="Description"
-                    value={description}
-                    onChange={handleFieldChange(setDescription)}
-                    fullWidth
-                    multiline
-                    minRows={3}
-                    disabled={!isOwner || isWorking}
-                    placeholder="What is this channel for?"
-                  />
+          {activeTab === "general" ? (
+            <Box sx={{ p: 3, maxHeight: PANEL_HEIGHT, overflowY: "auto" }}>
+              <Stack spacing={3}>
+                <Box component="form" onSubmit={handleSave} noValidate>
+                  <Stack spacing={2} sx={{ pt: 0.5 }}>
+                    <TextField
+                      label="Channel name"
+                      value={name}
+                      onChange={handleFieldChange(setName)}
+                      required
+                      fullWidth
+                      disabled={!isOwner || isWorking}
+                      slotProps={{ htmlInput: { maxLength: 100 } }}
+                    />
+                    <TextField
+                      label="Description"
+                      value={description}
+                      onChange={handleFieldChange(setDescription)}
+                      fullWidth
+                      multiline
+                      minRows={3}
+                      disabled={!isOwner || isWorking}
+                      placeholder="What is this channel for?"
+                    />
 
-                  <FormControlLabel
-                    sx={{ ml: 0, width: "100%", justifyContent: "space-between", alignItems: "flex-start" }}
-                    control={
-                      <Switch
-                        checked={isPrivate}
-                        onChange={(event) => {
-                          setIsPrivate(event.target.checked);
-                          setSaved(false);
-                          channelStore.clearChannelSettingsError();
-                        }}
-                        disabled={!isOwner || isWorking}
-                        slotProps={{ input: { "aria-label": "Private channel" } }}
-                      />
-                    }
-                    labelPlacement="start"
-                    label={
-                      <Box sx={{ pr: 2 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                          Private channel
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          {isPrivate
-                            ? "Only members and people with an invite link can access this channel."
-                            : "Non-members can view channel details; joining still requires an invite."}
-                        </Typography>
-                      </Box>
-                    }
-                  />
+                    <FormControlLabel
+                      sx={{ ml: 0, width: "100%", justifyContent: "space-between", alignItems: "flex-start" }}
+                      control={
+                        <Switch
+                          checked={isPrivate}
+                          onChange={(event) => {
+                            setIsPrivate(event.target.checked);
+                            setSaved(false);
+                            channelStore.clearChannelSettingsError();
+                          }}
+                          disabled={!isOwner || isWorking}
+                          slotProps={{ input: { "aria-label": "Private channel" } }}
+                        />
+                      }
+                      labelPlacement="start"
+                      label={
+                        <Box sx={{ pr: 2 }}>
+                          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                            Private channel
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {isPrivate
+                              ? "Only members and people with an invite link can access this channel."
+                              : "Non-members can view channel details; joining still requires an invite."}
+                          </Typography>
+                        </Box>
+                      }
+                    />
 
-                  {formError || channelStore.channelSettingsError ? (
-                    <Alert severity="error">{formError ?? channelStore.channelSettingsError}</Alert>
-                  ) : null}
-                  {saved ? <Alert severity="success">Channel settings saved.</Alert> : null}
-
-                  <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
-                    <Button type="button" color="inherit" fullWidth onClick={handleClose} disabled={isWorking}>
-                      Close
-                    </Button>
-                    {isOwner ? (
-                      <Button
-                        type="submit"
-                        variant="contained"
-                        fullWidth
-                        startIcon={<SaveRounded />}
-                        disabled={isWorking || !hasChanges}
-                      >
-                        {channelStore.isSavingChannel ? "Saving…" : "Save changes"}
-                      </Button>
+                    {formError || channelStore.channelSettingsError ? (
+                      <Alert severity="error">{formError ?? channelStore.channelSettingsError}</Alert>
                     ) : null}
+                    {saved ? <Alert severity="success">Channel settings saved.</Alert> : null}
+
+                    <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
+                      <Button type="button" color="inherit" fullWidth onClick={handleClose} disabled={isWorking}>
+                        Close
+                      </Button>
+                      {isOwner ? (
+                        <Button
+                          type="submit"
+                          variant="contained"
+                          fullWidth
+                          startIcon={<SaveRounded />}
+                          disabled={isWorking || !hasChanges}
+                        >
+                          {channelStore.isSavingChannel ? "Saving…" : "Save changes"}
+                        </Button>
+                      ) : null}
+                    </Stack>
                   </Stack>
-                </Stack>
-              </Box>
+                </Box>
 
-              {isOwner ? (
-                <>
-                  <Divider />
-                  <InviteLinkSection
-                    targetName={channel.name}
-                    link={channelStore.inviteLink}
-                    loading={channelStore.inviteLinkLoading}
-                    error={channelStore.inviteLinkError}
-                    onGenerate={() => channelStore.getOrCreateInviteLink(channel.id)}
-                  />
-                </>
-              ) : null}
+                {isOwner ? (
+                  <>
+                    <Divider />
+                    <InviteLinkSection
+                      targetName={channel.name}
+                      link={channelStore.inviteLink}
+                      loading={channelStore.inviteLinkLoading}
+                      error={channelStore.inviteLinkError}
+                      onGenerate={() => channelStore.getOrCreateInviteLink(channel.id)}
+                    />
+                  </>
+                ) : null}
 
-              <Box sx={{ p: 2, border: "1px solid", borderColor: "error.main", borderRadius: 2 }}>
-                <Typography variant="subtitle2" color="error" sx={{ mb: 0.5 }}>
-                  {isOwner ? "Delete channel" : "Leave channel"}
-                </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                  {isOwner
-                    ? "Deleting this channel removes it for everyone and cannot be undone."
-                    : "You will need another invitation to rejoin this channel."}
-                </Typography>
-                <Button
-                  color="error"
-                  variant="outlined"
-                  fullWidth
-                  startIcon={<DeleteOutlineRounded />}
-                  onClick={() => setConfirmActionOpen(true)}
-                  disabled={isWorking}
+                <Divider />
+                <Stack
+                  direction={{ xs: "column", sm: "row" }}
+                  spacing={1.5}
+                  sx={{ alignItems: { xs: "flex-start", sm: "center" }, justifyContent: "space-between" }}
                 >
-                  {isOwner ? "Delete channel" : "Leave channel"}
-                </Button>
-              </Box>
-            </Stack>
+                  <Box>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                      {isOwner ? "Delete channel" : "Leave channel"}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {isOwner
+                        ? "Removes it for everyone and cannot be undone."
+                        : "You will need another invitation to rejoin."}
+                    </Typography>
+                  </Box>
+                  <Button
+                    color="error"
+                    variant="outlined"
+                    size="small"
+                    startIcon={<DeleteOutlineRounded fontSize="small" />}
+                    onClick={() => setConfirmActionOpen(true)}
+                    disabled={isWorking}
+                    sx={{ flexShrink: 0 }}
+                  >
+                    {isOwner ? "Delete channel" : "Leave channel"}
+                  </Button>
+                </Stack>
+              </Stack>
+            </Box>
+          ) : null}
 
-            <Box>
+          {activeTab === "members" ? (
+            <Box sx={{ p: 3, height: PANEL_HEIGHT, display: "flex", flexDirection: "column" }}>
               <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between", mb: 1 }}>
                 <Typography variant="subtitle1">
                   Members ({channelStore.channelMembers.length})
@@ -345,7 +386,16 @@ function ChannelSettingsModal({
                 </Alert>
               ) : null}
 
-              <Box sx={{ maxHeight: 460, overflowY: "auto", border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
+              <Box
+                sx={{
+                  flex: 1,
+                  minHeight: 0,
+                  overflowY: "auto",
+                  border: "1px solid",
+                  borderColor: "divider",
+                  borderRadius: 2,
+                }}
+              >
                 {channelStore.channelMembersLoading ? (
                   <Box sx={{ display: "flex", justifyContent: "center", py: 5 }}>
                     <CircularProgress size={26} />
@@ -359,40 +409,12 @@ function ChannelSettingsModal({
                     {channelStore.channelMembers.map((member) => (
                       <ListItem
                         key={member.user_id}
-                        sx={{ borderBottom: "1px solid", borderColor: "divider" }}
-                        secondaryAction={
-                          <Stack direction="row" spacing={0.5}>
-                            {isOwner && member.user_id !== currentUserId ? (
-                              <Tooltip title={`Edit roles for ${member.name}`}>
-                                <IconButton
-                                  edge="end"
-                                  size="small"
-                                  disabled={isWorking}
-                                  onClick={(event) =>
-                                    setRolesMemberAnchor({ element: event.currentTarget, userId: member.user_id })
-                                  }
-                                  aria-label={`Edit roles for ${member.name}`}
-                                >
-                                  <AdminPanelSettingsRounded fontSize="small" />
-                                </IconButton>
-                              </Tooltip>
-                            ) : null}
-                            {isOwner && member.user_id !== currentUserId ? (
-                              <Tooltip title={`Remove ${member.name}`}>
-                                <IconButton
-                                  edge="end"
-                                  size="small"
-                                  color="error"
-                                  disabled={isWorking}
-                                  onClick={() => handleRemoveMember(member.user_id)}
-                                  aria-label={`Remove ${member.name}`}
-                                >
-                                  <PersonRemoveRounded fontSize="small" />
-                                </IconButton>
-                              </Tooltip>
-                            ) : null}
-                          </Stack>
-                        }
+                        sx={{
+                          borderBottom: "1px solid",
+                          borderColor: "divider",
+                          gap: 1,
+                          pr: 2,
+                        }}
                       >
                         <ListItemAvatar>
                           <Avatar>{member.name.trim().charAt(0).toUpperCase() || "?"}</Avatar>
@@ -401,33 +423,58 @@ function ChannelSettingsModal({
                           primary={member.name}
                           secondary={
                             member.custom_roles.length > 0
-                              ? `@${member.username} · ${member.custom_roles
-                                  .map(
-                                    (id) =>
-                                      channelStore.channelRoles.find((r) => r.id === id)?.name ?? id,
-                                  )
-                                  .join(", ")}`
+                              ? `@${member.username} · ${member.custom_roles.map((r) => r.name).join(", ")}`
                               : `@${member.username}`
                           }
                         />
-                        <Chip
-                          label={
-                            member.role === "owner" ? "Owner" : member.role === "admin" ? "Admin" : "Member"
-                          }
-                          size="small"
-                          sx={{ mr: 1 }}
-                        />
+                        <Stack direction="row" spacing={0.5} sx={{ alignItems: "center", flexShrink: 0 }}>
+                          <Chip
+                            label={
+                              member.role === "owner" ? "Owner" : member.role === "admin" ? "Admin" : "Member"
+                            }
+                            size="small"
+                          />
+                          {isOwner && member.user_id !== currentUserId ? (
+                            <Tooltip title={`Edit roles for ${member.name}`}>
+                              <IconButton
+                                size="small"
+                                disabled={isWorking}
+                                onClick={(event) =>
+                                  setRolesMemberAnchor({ element: event.currentTarget, userId: member.user_id })
+                                }
+                                aria-label={`Edit roles for ${member.name}`}
+                              >
+                                <AdminPanelSettingsRounded fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          ) : null}
+                          {isOwner && member.user_id !== currentUserId ? (
+                            <Tooltip title={`Remove ${member.name}`}>
+                              <IconButton
+                                size="small"
+                                color="error"
+                                disabled={isWorking}
+                                onClick={() => setRemoveMemberTarget(member)}
+                                aria-label={`Remove ${member.name}`}
+                              >
+                                <PersonRemoveRounded fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          ) : null}
+                        </Stack>
                       </ListItem>
                     ))}
                   </List>
                 )}
               </Box>
+            </Box>
+          ) : null}
 
-              <Divider sx={{ my: 3 }} />
-
+          {activeTab === "roles" ? (
+            <Box sx={{ p: 3, maxHeight: PANEL_HEIGHT, overflowY: "auto" }}>
               <ChannelRolesPanel channelId={channel.id} isOwner={isOwner} />
             </Box>
-          </Box>
+          ) : null}
         </DialogContent>
       </Dialog>
 
@@ -459,6 +506,28 @@ function ChannelSettingsModal({
             </Button>
             <Button color="error" variant="contained" onClick={handleLeaveOrDelete} disabled={actionWorking}>
               {actionWorking ? "Working…" : isOwner ? "Delete channel" : "Leave channel"}
+            </Button>
+          </Stack>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(removeMemberTarget)}
+        onClose={isRemovingMember ? undefined : () => setRemoveMemberTarget(null)}
+        fullWidth
+        maxWidth="xs"
+      >
+        <DialogTitle>Remove member?</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary">
+            Remove {removeMemberTarget?.name ?? "this member"} from “{channel.name}”?
+          </Typography>
+          <Stack direction="row" spacing={1.5} sx={{ justifyContent: "flex-end", mt: 3 }}>
+            <Button onClick={() => setRemoveMemberTarget(null)} disabled={isRemovingMember}>
+              Cancel
+            </Button>
+            <Button color="error" variant="contained" onClick={handleConfirmRemoveMember} disabled={isRemovingMember}>
+              {isRemovingMember ? "Removing…" : "Remove member"}
             </Button>
           </Stack>
         </DialogContent>

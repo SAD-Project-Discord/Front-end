@@ -418,7 +418,7 @@ class ChannelStore {
         this.channelRoles = this.channelRoles.filter((r) => r.id !== roleId);
         this.channelMembers = this.channelMembers.map((m) => ({
           ...m,
-          custom_roles: m.custom_roles.filter((id) => id !== roleId),
+          custom_roles: m.custom_roles.filter((r) => r.id !== roleId),
         }));
       });
       return true;

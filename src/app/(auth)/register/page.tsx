@@ -119,15 +119,15 @@ function RegisterPage() {
   };
 
   return (
-    <AuthBackground>
-      <AuthCard>
+    <AuthBackground scrollable>
+      <AuthCard compact>
         <AuthHeader
           icon={AccountCircle}
           title="Create Account"
           subtitle="Sign up to join your community."
         />
 
-        <Box component="form" onSubmit={handleSubmit} noValidate>
+        <Box component="form" onSubmit={handleSubmit} noValidate sx={{ "& .MuiBox-root": { mb: 1.5 } }}>
           <IconTextField
             label="Full Name"
             icon={AccountCircle}
