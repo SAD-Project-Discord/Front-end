@@ -63,6 +63,8 @@ function ChannelSettingsModal({
   const [addMembersOpen, setAddMembersOpen] = useState(false);
   const [confirmActionOpen, setConfirmActionOpen] = useState(false);
   const [actionWorking, setActionWorking] = useState(false);
+  const [removeMemberTarget, setRemoveMemberTarget] = useState<ChannelMember | null>(null);
+  const [isRemovingMember, setIsRemovingMember] = useState(false);
   const [rolesMemberAnchor, setRolesMemberAnchor] = useState<{
     element: HTMLElement;
     userId: string;
@@ -119,6 +121,7 @@ function ChannelSettingsModal({
     setAddMembersOpen(false);
     setConfirmActionOpen(false);
     setRolesMemberAnchor(null);
+    setRemoveMemberTarget(null);
     onClose();
   }
 
@@ -151,10 +154,12 @@ function ChannelSettingsModal({
     }
   }
 
-  async function handleRemoveMember(userId: string) {
-    setActionWorking(true);
-    await channelStore.removeChannelMember(channel.id, userId);
-    setActionWorking(false);
+  async function handleConfirmRemoveMember() {
+    if (!removeMemberTarget) return;
+    setIsRemovingMember(true);
+    await channelStore.removeChannelMember(channel.id, removeMemberTarget.user_id);
+    setIsRemovingMember(false);
+    setRemoveMemberTarget(null);
   }
 
   async function handleLeaveOrDelete() {
@@ -384,7 +389,7 @@ function ChannelSettingsModal({
                                   size="small"
                                   color="error"
                                   disabled={isWorking}
-                                  onClick={() => handleRemoveMember(member.user_id)}
+                                  onClick={() => setRemoveMemberTarget(member)}
                                   aria-label={`Remove ${member.name}`}
                                 >
                                   <PersonRemoveRounded fontSize="small" />
@@ -459,6 +464,28 @@ function ChannelSettingsModal({
             </Button>
             <Button color="error" variant="contained" onClick={handleLeaveOrDelete} disabled={actionWorking}>
               {actionWorking ? "Working…" : isOwner ? "Delete channel" : "Leave channel"}
+            </Button>
+          </Stack>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(removeMemberTarget)}
+        onClose={isRemovingMember ? undefined : () => setRemoveMemberTarget(null)}
+        fullWidth
+        maxWidth="xs"
+      >
+        <DialogTitle>Remove member?</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary">
+            Remove {removeMemberTarget?.name ?? "this member"} from “{channel.name}”?
+          </Typography>
+          <Stack direction="row" spacing={1.5} sx={{ justifyContent: "flex-end", mt: 3 }}>
+            <Button onClick={() => setRemoveMemberTarget(null)} disabled={isRemovingMember}>
+              Cancel
+            </Button>
+            <Button color="error" variant="contained" onClick={handleConfirmRemoveMember} disabled={isRemovingMember}>
+              {isRemovingMember ? "Removing…" : "Remove member"}
             </Button>
           </Stack>
         </DialogContent>

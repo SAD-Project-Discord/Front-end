@@ -66,6 +66,8 @@ function GroupSettingsModal({ open, onClose, groupId, onUpdated, onDeleted }: Gr
   const [inviteOpen, setInviteOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [removeMemberTarget, setRemoveMemberTarget] = useState<GroupMember | null>(null);
+  const [isRemovingMember, setIsRemovingMember] = useState(false);
 
   const [prevGroupId, setPrevGroupId] = useState<string | null>(null);
   const [wasOpen, setWasOpen] = useState(false);
@@ -155,12 +157,13 @@ function GroupSettingsModal({ open, onClose, groupId, onUpdated, onDeleted }: Gr
     }
   };
 
-  const handleRemoveMember = async (member: GroupMember) => {
-    if (!group) return;
-    const confirmed = window.confirm(`Remove ${member.user.name} from the group?`);
-    if (!confirmed) return;
+  const handleConfirmRemoveMember = async () => {
+    if (!group || !removeMemberTarget) return;
 
-    await groupStore.removeGroupMember(group.id, member.user.id);
+    setIsRemovingMember(true);
+    await groupStore.removeGroupMember(group.id, removeMemberTarget.user.id);
+    setIsRemovingMember(false);
+    setRemoveMemberTarget(null);
   };
 
   const handleDeleteGroup = async () => {
@@ -380,7 +383,7 @@ function GroupSettingsModal({ open, onClose, groupId, onUpdated, onDeleted }: Gr
                                       edge="end"
                                       size="small"
                                       color="error"
-                                      onClick={() => handleRemoveMember(member)}
+                                      onClick={() => setRemoveMemberTarget(member)}
                                       disabled={isWorking}
                                     >
                                       <Delete fontSize="small" />
@@ -424,6 +427,28 @@ function GroupSettingsModal({ open, onClose, groupId, onUpdated, onDeleted }: Gr
           </Button>
           <Button onClick={handleDeleteGroup} color="error" variant="contained" disabled={isDeleting}>
             {isDeleting ? "Deleting..." : "Delete group"}
+          </Button>
+        </Stack>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(removeMemberTarget)}
+        onClose={() => !isRemovingMember && setRemoveMemberTarget(null)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Remove member?</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" sx={{ color: "text.secondary" }}>
+            Remove {removeMemberTarget?.user?.name || removeMemberTarget?.user?.username || "this member"} from the group?
+          </Typography>
+        </DialogContent>
+        <Stack direction="row" spacing={1.5} sx={{ px: 3, pb: 2, justifyContent: "flex-end" }}>
+          <Button onClick={() => setRemoveMemberTarget(null)} disabled={isRemovingMember}>
+            Cancel
+          </Button>
+          <Button onClick={handleConfirmRemoveMember} color="error" variant="contained" disabled={isRemovingMember}>
+            {isRemovingMember ? "Removing..." : "Remove member"}
           </Button>
         </Stack>
       </Dialog>
