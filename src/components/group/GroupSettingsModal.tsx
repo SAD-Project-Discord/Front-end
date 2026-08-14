@@ -166,10 +166,12 @@ function GroupSettingsModal({ open, onClose, groupId, onUpdated, onDeleted }: Gr
       return;
     }
 
-    // Always send all fields: backend expects full payload for PATCH
+    // Always send all fields: backend expects full payload for PATCH.
+    // An intentionally cleared description must remain present as an empty string
+    // rather than being omitted, otherwise the backend treats it as unchanged.
     const payload: UpdateGroupRequest = {
       name: values.name.trim(),
-      description: values.description.trim() || undefined,
+      description: values.description.trim(),
     };
 
     const updated = await groupStore.updateGroup(group.id, payload);
