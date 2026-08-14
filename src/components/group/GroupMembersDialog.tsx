@@ -27,6 +27,7 @@ import FormControlLabel from "@mui/material/FormControlLabel";
 import { observer } from "mobx-react-lite";
 import groupStore from "@/stores/GroupStore";
 import AddMembersModal from "@/components/members/AddMembersModal";
+import type { PublicUserProfile } from "@/types/user";
 import { InviteLinkSection } from "@/components/members/InviteLinkSection";
 import type { GroupInfo } from "@/types/group";
 
@@ -40,6 +41,7 @@ export interface GroupMembersDialogProps {
 
 function GroupMembersDialog({ open, onClose, group, currentUserId, onLeftOrDeleted }: GroupMembersDialogProps) {
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviteFailedNames, setInviteFailedNames] = useState<string[]>([]);
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [working, setWorking] = useState(false);
   const [savingPrivacy, setSavingPrivacy] = useState(false);
@@ -48,6 +50,7 @@ function GroupMembersDialog({ open, onClose, group, currentUserId, onLeftOrDelet
 
   useEffect(() => {
     if (open) groupStore.clearInviteLink();
+    if (open) setInviteFailedNames([]);
   }, [open, group.id]);
 
   async function handleRemove(userId: string) {
@@ -100,6 +103,11 @@ function GroupMembersDialog({ open, onClose, group, currentUserId, onLeftOrDelet
         {groupStore.invitationActionError ? (
           <Alert severity="error" sx={{ mb: 1.5 }}>
             {groupStore.invitationActionError}
+          </Alert>
+        ) : null}
+        {inviteFailedNames.length > 0 ? (
+          <Alert severity="error" sx={{ mb: 1.5 }}>
+            Could not invite: {inviteFailedNames.join(", ")}
           </Alert>
         ) : null}
 
@@ -213,7 +221,16 @@ function GroupMembersDialog({ open, onClose, group, currentUserId, onLeftOrDelet
         open={inviteOpen}
         onClose={() => setInviteOpen(false)}
         existingMemberIds={groupStore.myGroupMemberIds}
-        onSubmit={(userIds) => groupStore.sendGroupInvitations(group.id, userIds)}
+        onSubmit={async (users: PublicUserProfile[]) => {
+          const ids = users.map((u) => u.id);
+          const res = await groupStore.sendGroupInvitationsWithResults(group.id, ids);
+          if (res.inviteForbidden.length > 0) {
+            // Map ids to the provided names
+            const idToName = new Map(users.map((u) => [u.id, u.name || u.username || u.id]));
+            setInviteFailedNames(res.inviteForbidden.map((id) => idToName.get(id) ?? id));
+          }
+          return true;
+        }}
         isSubmitting={groupStore.isSubmittingInvitation}
         submitError={groupStore.invitationActionError}
         title="Invite to group"
