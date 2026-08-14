@@ -104,6 +104,24 @@ function GroupSettingsModal({ open, onClose, groupId, onUpdated, onDeleted }: Gr
     }
   }, [open, groupId]);
 
+  // Clear invite-summary state when modal closes or when switching groups
+  useEffect(() => {
+    if (!open) {
+      setInviteSummary(null);
+      setConfirmInviteUsers([]);
+      setConfirmInviteOpen(false);
+    }
+  }, [open]);
+
+  useEffect(() => {
+    // when groupId changes while open, clear previous invite summary
+    if (open) {
+      setInviteSummary(null);
+      setConfirmInviteUsers([]);
+      setConfirmInviteOpen(false);
+    }
+  }, [groupId]);
+
   // Ensure we have the current user's profile when opening the modal
   useEffect(() => {
     if (open && authStore.isAuthenticated && !authStore.user) {
