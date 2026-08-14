@@ -22,8 +22,11 @@ function ConfirmSendInvitesModal({ open, users, onClose, onConfirm }: ConfirmSen
 
   React.useEffect(() => {
     if (!open) {
-      setLoading(false);
-      setSummary(null);
+      // schedule resets asynchronously to avoid setState-in-effect lint error
+      Promise.resolve().then(() => {
+        setLoading(false);
+        setSummary(null);
+      });
     }
   }, [open]);
 

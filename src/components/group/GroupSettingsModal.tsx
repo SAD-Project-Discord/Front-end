@@ -33,8 +33,6 @@ import { observer } from "mobx-react-lite";
 import IconTextField from "@/components/auth/IconTextField";
 import AddMembersModal from "@/components/members/AddMembersModal";
 import ConfirmSendInvitesModal from "@/components/members/ConfirmSendInvitesModal";
-import contactStore from "@/stores/ContactStore";
-import userStore from "@/stores/UserStore";
 import type { PublicUserProfile } from "@/types/user";
 import groupStore from "@/stores/GroupStore";
 import authStore from "@/stores/AuthStore";

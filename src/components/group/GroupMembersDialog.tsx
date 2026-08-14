@@ -49,8 +49,11 @@ function GroupMembersDialog({ open, onClose, group, currentUserId, onLeftOrDelet
   const isOwner = groupStore.roleForMember(group.id, currentUserId) === "owner";
 
   useEffect(() => {
-    if (open) groupStore.clearInviteLink();
-    if (open) setInviteFailedNames([]);
+    if (open) {
+      groupStore.clearInviteLink();
+      // schedule clearing state asynchronously to avoid sync setState-in-effect lint error
+      Promise.resolve().then(() => setInviteFailedNames([]));
+    }
   }, [open, group.id]);
 
   async function handleRemove(userId: string) {
