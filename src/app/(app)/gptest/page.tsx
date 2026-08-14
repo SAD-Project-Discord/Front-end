@@ -23,6 +23,7 @@ import GroupSettingsModal from "@/components/group/GroupSettingsModal";
 import CreateChannelModal from "@/components/channel/CreateChannelModal";
 import AddMembersModal from "@/components/members/AddMembersModal";
 import groupStore from "@/stores/GroupStore";
+import type { PublicUserProfile } from "@/types/user";
 import type { Group } from "@/types/group";
 import type { Channel } from "@/types/channel";
 
@@ -43,11 +44,12 @@ function GroupsPlaceholderPage() {
     setInviteOpen(true);
   };
 
-  const handleSubmitMembers = (userIds: string[]) => {
+  const handleSubmitMembers = (users: PublicUserProfile[]) => {
     if (!lastCreated) return Promise.resolve(false);
+    const ids = users.map((u) => u.id);
     return action === "add"
-      ? groupStore.addMembers(lastCreated.id, userIds)
-      : groupStore.inviteMembers(lastCreated.id, userIds);
+      ? groupStore.addMembers(lastCreated.id, ids)
+      : groupStore.inviteMembers(lastCreated.id, ids);
   };
 
   return (

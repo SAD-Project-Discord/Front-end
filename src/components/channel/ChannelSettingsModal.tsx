@@ -36,6 +36,7 @@ import {
 } from "@mui/icons-material";
 import { observer } from "mobx-react-lite";
 import AddMembersModal from "@/components/members/AddMembersModal";
+import type { PublicUserProfile } from "@/types/user";
 import { InviteLinkSection } from "@/components/members/InviteLinkSection";
 import ChannelRolesPanel from "@/components/channel/ChannelRolesPanel";
 import MemberRolesPopover from "@/components/channel/MemberRolesPopover";
@@ -543,7 +544,11 @@ function ChannelSettingsModal({
         open={addMembersOpen}
         onClose={() => setAddMembersOpen(false)}
         existingMemberIds={channelStore.myChannelMemberIds}
-        onSubmit={(userIds) => channelStore.addChannelMembers(channel.id, userIds)}
+        onSubmit={async (users: PublicUserProfile[]) => {
+          const ids = users.map((u) => u.id);
+          await channelStore.addChannelMembers(channel.id, ids);
+          return true;
+        }}
         isSubmitting={channelStore.isSubmittingMembers}
         submitError={channelStore.membersActionError}
         title="Add to channel"

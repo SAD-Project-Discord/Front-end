@@ -21,6 +21,19 @@ function getErrorMessage(error: unknown, fallback: string): string {
   return typeof responseMessage === "string" ? responseMessage : fallback;
 }
 
+function isForbiddenError(error: unknown): boolean {
+  return (
+    !!error &&
+    typeof error === "object" &&
+    "response" in error &&
+    (error as { response?: { status?: number; data?: { error?: { code?: string } } } }).response?.status === 403
+  ) ||
+    (typeof error === "object" &&
+      error !== null &&
+      "response" in error &&
+      (error as { response?: { data?: { error?: { code?: string } } } }).response?.data?.error?.code === "FORBIDDEN");
+}
+
 class GroupStore {
   groups: Group[] = [];
 
@@ -269,6 +282,61 @@ class GroupStore {
     return success;
   }
 
+  /**
+   * Attempts to add members one-by-one and returns a per-user result set.
+   * Does not show UI; callers can decide whether to prompt to send invites
+   * for users that returned a privacy FORBIDDEN error.
+   */
+  async addMembersWithInviteFallback(
+    groupId: string,
+    userIds: string[]
+  ): Promise<{ added: string[]; addForbidden: string[]; errors: Record<string, string> }> {
+    const added: string[] = [];
+    const addForbidden: string[] = [];
+    const errors: Record<string, string> = {};
+
+    if (userIds.length === 0) return { added, addForbidden, errors };
+
+    this.isSubmittingMembers = true;
+    this.membersActionError = null;
+
+    try {
+      const results = await Promise.allSettled(userIds.map((userId) => groupService.addMember(groupId, userId)));
+
+      for (let i = 0; i < results.length; i++) {
+        const userId = userIds[i];
+        const res = results[i];
+        if (res.status === "fulfilled") {
+          added.push(userId);
+        } else {
+          const reason = res.reason;
+          if (isForbiddenError(reason)) {
+            addForbidden.push(userId);
+          } else {
+            errors[userId] = getErrorMessage(reason, "Could not add this member.");
+          }
+        }
+      }
+
+      if (added.length > 0) {
+        await this.loadGroup(groupId);
+      }
+
+      // If we got any non-privacy errors, surface a generic message to the UI
+      if (Object.keys(errors).length > 0) {
+        runInAction(() => {
+          this.membersActionError = "Some members could not be added.";
+        });
+      }
+
+      return { added, addForbidden, errors };
+    } finally {
+      runInAction(() => {
+        this.isSubmittingMembers = false;
+      });
+    }
+  }
+
   async updateGroupMemberRole(groupId: string, userId: string, role: string): Promise<boolean> {
     this.isSubmittingMembers = true;
     this.membersActionError = null;
@@ -464,6 +532,57 @@ class GroupStore {
       }
 
       return true;
+    } finally {
+      runInAction(() => {
+        this.isSubmittingInvitation = false;
+      });
+    }
+  }
+
+  /**
+   * Attempts to send invitations per-user and returns per-user results so
+   * callers can show counts of invite-forbidden users.
+   */
+  async sendGroupInvitationsWithResults(
+    groupId: string,
+    userIds: string[]
+  ): Promise<{ invited: string[]; inviteForbidden: string[]; errors: Record<string, string> }> {
+    const invited: string[] = [];
+    const inviteForbidden: string[] = [];
+    const errors: Record<string, string> = {};
+
+    if (userIds.length === 0) return { invited, inviteForbidden, errors };
+
+    this.isSubmittingInvitation = true;
+    this.invitationActionError = null;
+
+    try {
+      const results = await Promise.allSettled(
+        userIds.map((userId) => groupService.sendGroupInvitation(groupId, userId))
+      );
+
+      for (let i = 0; i < results.length; i++) {
+        const userId = userIds[i];
+        const res = results[i];
+        if (res.status === "fulfilled") {
+          invited.push(userId);
+        } else {
+          const reason = res.reason;
+          if (isForbiddenError(reason)) {
+            inviteForbidden.push(userId);
+          } else {
+            errors[userId] = getErrorMessage(reason, "Could not send invite to this user.");
+          }
+        }
+      }
+
+      if (Object.keys(errors).length > 0) {
+        runInAction(() => {
+          this.invitationActionError = "Some invitations could not be sent.";
+        });
+      }
+
+      return { invited, inviteForbidden, errors };
     } finally {
       runInAction(() => {
         this.isSubmittingInvitation = false;

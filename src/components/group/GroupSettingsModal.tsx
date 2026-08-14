@@ -32,6 +32,8 @@ import {
 import { observer } from "mobx-react-lite";
 import IconTextField from "@/components/auth/IconTextField";
 import AddMembersModal from "@/components/members/AddMembersModal";
+import ConfirmSendInvitesModal from "@/components/members/ConfirmSendInvitesModal";
+import type { PublicUserProfile } from "@/types/user";
 import groupStore from "@/stores/GroupStore";
 import authStore from "@/stores/AuthStore";
 import userService from "@/services/user.service";
@@ -73,17 +75,31 @@ function GroupSettingsModal({ open, onClose, groupId, onUpdated, onDeleted }: Gr
   const [prevGroupId, setPrevGroupId] = useState<string | null>(null);
   const [wasOpen, setWasOpen] = useState(false);
 
+  const [confirmInviteOpen, setConfirmInviteOpen] = useState(false);
+  const [confirmInviteUsers, setConfirmInviteUsers] = useState<{ id: string; name: string }[]>([]);
+  const [inviteSummary, setInviteSummary] = useState<null | { invited: string[]; inviteForbidden: string[]; errors: Record<string, string> }>(null);
   const group = groupStore.currentGroup;
 
   if (open !== wasOpen || (open && group && group.id !== prevGroupId)) {
     setWasOpen(open);
     setPrevGroupId(open && group ? group.id : null);
+    if (!open) {
+      setInviteSummary(null);
+      setConfirmInviteUsers([]);
+      setConfirmInviteOpen(false);
+    }
+
     if (open && group) {
       setValues({
         name: group.name ?? "",
         description: group.description ?? "",
       });
       setFormError(null);
+    }
+    if (open && group && group.id !== prevGroupId) {
+      setInviteSummary(null);
+      setConfirmInviteUsers([]);
+      setConfirmInviteOpen(false);
     }
   }
   const members = group?.members ?? [];
@@ -101,6 +117,8 @@ function GroupSettingsModal({ open, onClose, groupId, onUpdated, onDeleted }: Gr
       groupStore.loadGroup(groupId);
     }
   }, [open, groupId]);
+
+  
 
   // Ensure we have the current user's profile when opening the modal
   useEffect(() => {
@@ -146,10 +164,12 @@ function GroupSettingsModal({ open, onClose, groupId, onUpdated, onDeleted }: Gr
       return;
     }
 
-    // Always send all fields: backend expects full payload for PATCH
+    // Always send all fields: backend expects full payload for PATCH.
+    // An intentionally cleared description must remain present as an empty string
+    // rather than being omitted, otherwise the backend treats it as unchanged.
     const payload: UpdateGroupRequest = {
       name: values.name.trim(),
-      description: values.description.trim() || undefined,
+      description: values.description.trim(),
     };
 
     const updated = await groupStore.updateGroup(group.id, payload);
@@ -181,9 +201,41 @@ function GroupSettingsModal({ open, onClose, groupId, onUpdated, onDeleted }: Gr
     }
   };
 
-  const handleAddMembers = async (userIds: string[]) => {
+  const handleAddMembers = async (users: PublicUserProfile[]) => {
     if (!group) return false;
-    return groupStore.addMembers(group.id, userIds);
+
+    const ids = users.map((u) => u.id);
+    // Try to add members directly; if some users block direct adds, prompt to send invitations.
+    const result = await groupStore.addMembersWithInviteFallback(group.id, ids);
+
+    // Always return true so the AddMembersModal closes — we'll handle any follow-up prompts here.
+    if (result.addForbidden.length > 0) {
+      // Use the provided user list to preserve display names/avatars
+      const usersById = new Map(users.map((u) => [u.id, u]));
+      setConfirmInviteUsers(
+        result.addForbidden.map((id) => ({ id, name: usersById.get(id)?.name || usersById.get(id)?.username || id }))
+      );
+      setConfirmInviteOpen(true);
+    }
+
+    return true;
+  };
+
+  
+
+  const handleConfirmSendInvites = async () => {
+    if (!group) {
+      const empty = { invited: [] as string[], inviteForbidden: [] as string[], errors: {} as Record<string, string> };
+      setConfirmInviteOpen(false);
+      setInviteSummary(empty);
+      return empty;
+    }
+
+    const ids = confirmInviteUsers.map((u) => u.id);
+    const res = await groupStore.sendGroupInvitationsWithResults(group.id, ids);
+    setInviteSummary(res);
+    setConfirmInviteOpen(false);
+    return res;
   };
 
   const handleClose = () => {
@@ -475,6 +527,21 @@ function GroupSettingsModal({ open, onClose, groupId, onUpdated, onDeleted }: Gr
         isSubmitting={groupStore.isSubmittingMembers}
         submitError={groupStore.membersActionError}
       />
+      <ConfirmSendInvitesModal
+        open={confirmInviteOpen}
+        users={confirmInviteUsers}
+        onClose={() => setConfirmInviteOpen(false)}
+        onConfirm={handleConfirmSendInvites}
+      />
+      {inviteSummary ? (
+        <Box sx={{ px: 3, pb: 2 }}>
+          {inviteSummary.inviteForbidden.length > 0 ? (
+            <Alert severity="error">
+              Could not invite: {inviteSummary.inviteForbidden.map((id) => confirmInviteUsers.find((u) => u.id === id)?.name ?? id).join(", ")}.
+            </Alert>
+          ) : null}
+        </Box>
+      ) : null}
     </Dialog>
   );
 }

@@ -34,7 +34,7 @@ interface AddMembersModalProps {
   open: boolean;
   onClose: () => void;
   /** Callback that actually adds/invites the chosen users. Returns true on success. */
-  onSubmit: (userIds: string[]) => Promise<boolean>;
+  onSubmit: (users: PublicUserProfile[]) => Promise<boolean>;
   /** User ids already in the target group/channel — marked and unchoosable. */
   existingMemberIds: string[];
   title?: string;
@@ -121,13 +121,13 @@ function AddMembersModal({
   };
 
   const handleSubmit = async () => {
-    const ids = Array.from(selected.keys());
-    if (ids.length === 0) return;
+    const users = Array.from(selected.values());
+    if (users.length === 0) return;
 
     setLocalSubmitError(null);
     setLocalSubmitting(true);
 
-    const ok = await onSubmit(ids);
+    const ok = await onSubmit(users);
 
     setLocalSubmitting(false);
 
