@@ -75,17 +75,31 @@ function GroupSettingsModal({ open, onClose, groupId, onUpdated, onDeleted }: Gr
   const [prevGroupId, setPrevGroupId] = useState<string | null>(null);
   const [wasOpen, setWasOpen] = useState(false);
 
+  const [confirmInviteOpen, setConfirmInviteOpen] = useState(false);
+  const [confirmInviteUsers, setConfirmInviteUsers] = useState<{ id: string; name: string }[]>([]);
+  const [inviteSummary, setInviteSummary] = useState<null | { invited: string[]; inviteForbidden: string[]; errors: Record<string, string> }>(null);
   const group = groupStore.currentGroup;
 
   if (open !== wasOpen || (open && group && group.id !== prevGroupId)) {
     setWasOpen(open);
     setPrevGroupId(open && group ? group.id : null);
+    if (!open) {
+      setInviteSummary(null);
+      setConfirmInviteUsers([]);
+      setConfirmInviteOpen(false);
+    }
+
     if (open && group) {
       setValues({
         name: group.name ?? "",
         description: group.description ?? "",
       });
       setFormError(null);
+    }
+    if (open && group && group.id !== prevGroupId) {
+      setInviteSummary(null);
+      setConfirmInviteUsers([]);
+      setConfirmInviteOpen(false);
     }
   }
   const members = group?.members ?? [];
@@ -104,23 +118,7 @@ function GroupSettingsModal({ open, onClose, groupId, onUpdated, onDeleted }: Gr
     }
   }, [open, groupId]);
 
-  // Clear invite-summary state when modal closes or when switching groups
-  useEffect(() => {
-    if (!open) {
-      setInviteSummary(null);
-      setConfirmInviteUsers([]);
-      setConfirmInviteOpen(false);
-    }
-  }, [open]);
-
-  useEffect(() => {
-    // when groupId changes while open, clear previous invite summary
-    if (open) {
-      setInviteSummary(null);
-      setConfirmInviteUsers([]);
-      setConfirmInviteOpen(false);
-    }
-  }, [groupId]);
+  
 
   // Ensure we have the current user's profile when opening the modal
   useEffect(() => {
@@ -223,9 +221,7 @@ function GroupSettingsModal({ open, onClose, groupId, onUpdated, onDeleted }: Gr
     return true;
   };
 
-  const [confirmInviteOpen, setConfirmInviteOpen] = useState(false);
-  const [confirmInviteUsers, setConfirmInviteUsers] = useState<{ id: string; name: string }[]>([]);
-  const [inviteSummary, setInviteSummary] = useState<null | { invited: string[]; inviteForbidden: string[]; errors: Record<string, string> }>(null);
+  
 
   const handleConfirmSendInvites = async () => {
     if (!group) {
