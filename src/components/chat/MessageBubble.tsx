@@ -22,11 +22,14 @@ import type { Message, User } from "@/lib/types";
 import { AttachmentRenderer } from "./AttachmentRenderer";
 import { chatSurfaces } from "@/lib/theme/theme";
 import { openUserProfile } from "@/lib/profileNav";
+import { linkifyText } from "@/lib/text/linkify";
 
 export interface MessageBubbleProps {
   message: Message;
   sender: User;
   isOwnMessage: boolean;
+  /** Owner/admin/permission-holders can delete other members' messages; editing always stays author-only. */
+  canDeleteOthers?: boolean;
   isGroupedWithPrevious?: boolean;
   onEdit?: (message: Message, newContent: string) => void;
   onDelete?: (message: Message) => void;
@@ -37,6 +40,7 @@ export function MessageBubble({
   message,
   sender,
   isOwnMessage,
+  canDeleteOthers = false,
   isGroupedWithPrevious = false,
   onEdit,
   onDelete,
@@ -46,7 +50,9 @@ export function MessageBubble({
   const [draft, setDraft] = useState(message.content);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
-  const canModify = isOwnMessage && !message.isDeleted && message.deliveryState === "sent";
+  const isModifiable = !message.isDeleted && message.deliveryState === "sent";
+  const canEdit = isOwnMessage && isModifiable;
+  const canDelete = (isOwnMessage || canDeleteOthers) && isModifiable;
 
   function commitEdit() {
     const trimmed = draft.trim();
@@ -158,7 +164,7 @@ export function MessageBubble({
               <>
                 {message.content ? (
                   <Typography variant="body2" sx={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-                    {message.content}
+                    {linkifyText(message.content)}
                   </Typography>
                 ) : null}
                 {message.attachments.length > 0 ? (
@@ -172,17 +178,17 @@ export function MessageBubble({
             )}
           </Box>
 
-          {canModify && !isEditing ? (
+          {(canEdit || canDelete) && !isEditing ? (
             <Stack
               direction={isOwnMessage ? "row-reverse" : "row"}
               sx={{ opacity: 0, transition: "opacity 120ms", ".group\\/message:hover &": { opacity: 1 } }}
             >
-              {onEdit ? (
+              {canEdit && onEdit ? (
                 <IconButton size="small" onClick={() => setIsEditing(true)} aria-label="Edit message">
                   <EditRoundedIcon fontSize="inherit" />
                 </IconButton>
               ) : null}
-              {onDelete ? (
+              {canDelete && onDelete ? (
                 <IconButton size="small" onClick={() => setConfirmingDelete(true)} aria-label="Delete message">
                   <DeleteRoundedIcon fontSize="inherit" />
                 </IconButton>

@@ -42,6 +42,7 @@ import ChannelRolesPanel from "@/components/channel/ChannelRolesPanel";
 import MemberRolesPopover from "@/components/channel/MemberRolesPopover";
 import channelStore from "@/stores/ChannelStore";
 import { openUserProfile } from "@/lib/profileNav";
+import { hasChannelPermission } from "@/lib/permissions/channelPermissions";
 import type { Channel, ChannelMember, UpdateChannelRequest } from "@/types/channel";
 
 interface ChannelSettingsModalProps {
@@ -85,6 +86,11 @@ function ChannelSettingsModal({
     : undefined;
 
   const isOwner = channel.creator_id === currentUserId;
+  const currentMember = channelStore.channelMembers.find((m) => m.user_id === currentUserId);
+  const canManageChannel = hasChannelPermission(currentMember, isOwner, "manage_channel");
+  const canManageChannelMembers = hasChannelPermission(currentMember, isOwner, "manage_channel_members");
+  const canManageRoles = hasChannelPermission(currentMember, isOwner, "manage_roles");
+  const canManageInvitations = hasChannelPermission(currentMember, isOwner, "manage_invitations");
   const trimmedName = name.trim();
   const trimmedDescription = description.trim();
   const hasChanges =
@@ -245,7 +251,7 @@ function ChannelSettingsModal({
                       onChange={handleFieldChange(setName)}
                       required
                       fullWidth
-                      disabled={!isOwner || isWorking}
+                      disabled={!canManageChannel || isWorking}
                       slotProps={{ htmlInput: { maxLength: 100 } }}
                     />
                     <TextField
@@ -255,7 +261,7 @@ function ChannelSettingsModal({
                       fullWidth
                       multiline
                       minRows={3}
-                      disabled={!isOwner || isWorking}
+                      disabled={!canManageChannel || isWorking}
                       placeholder="What is this channel for?"
                     />
 
@@ -269,7 +275,7 @@ function ChannelSettingsModal({
                             setSaved(false);
                             channelStore.clearChannelSettingsError();
                           }}
-                          disabled={!isOwner || isWorking}
+                          disabled={!canManageChannel || isWorking}
                           slotProps={{ input: { "aria-label": "Private channel" } }}
                         />
                       }
@@ -297,7 +303,7 @@ function ChannelSettingsModal({
                       <Button type="button" color="inherit" fullWidth onClick={handleClose} disabled={isWorking}>
                         Close
                       </Button>
-                      {isOwner ? (
+                      {canManageChannel ? (
                         <Button
                           type="submit"
                           variant="contained"
@@ -312,7 +318,7 @@ function ChannelSettingsModal({
                   </Stack>
                 </Box>
 
-                {isOwner ? (
+                {canManageInvitations ? (
                   <>
                     <Divider />
                     <InviteLinkSection
@@ -363,7 +369,7 @@ function ChannelSettingsModal({
                 <Typography variant="subtitle1">
                   Members ({channelStore.channelMembers.length})
                 </Typography>
-                {isOwner ? (
+                {canManageChannelMembers ? (
                   <Tooltip title="Add members">
                     <IconButton
                       size="small"
@@ -441,7 +447,7 @@ function ChannelSettingsModal({
                             }
                             size="small"
                           />
-                          {isOwner && member.user_id !== currentUserId ? (
+                          {canManageRoles && member.user_id !== currentUserId ? (
                             <Tooltip title={`Edit roles for ${member.name}`}>
                               <IconButton
                                 size="small"
@@ -455,7 +461,7 @@ function ChannelSettingsModal({
                               </IconButton>
                             </Tooltip>
                           ) : null}
-                          {isOwner && member.user_id !== currentUserId ? (
+                          {canManageChannelMembers && member.user_id !== currentUserId ? (
                             <Tooltip title={`Remove ${member.name}`}>
                               <IconButton
                                 size="small"
@@ -479,7 +485,7 @@ function ChannelSettingsModal({
 
           {activeTab === "roles" ? (
             <Box sx={{ p: 3, maxHeight: PANEL_HEIGHT, overflowY: "auto" }}>
-              <ChannelRolesPanel channelId={channel.id} isOwner={isOwner} />
+              <ChannelRolesPanel channelId={channel.id} canManageRoles={canManageRoles} />
             </Box>
           ) : null}
         </DialogContent>

@@ -33,10 +33,18 @@ import ScheduledMessagesDialog from "@/components/chat/ScheduledMessagesDialog";
 import { ApiError } from "@/lib/api/api";
 import { usersApi } from "@/lib/api/users";
 import { chatWs } from "@/lib/api/chat";
-import { apiMessageToMessage } from "@/lib/chat/mappers";
+import { apiMessageToMessage, previewFor } from "@/lib/chat/mappers";
 import { mapGlobalSearchResults } from "@/lib/chat/globalSearch";
+import {
+  loadChatListMeta,
+  markChatListMetaRead,
+  upsertChatListMeta,
+  type ChatListMetaEntry,
+} from "@/lib/chat/chatListMeta";
 import { chatSurfaces } from "@/lib/theme/theme";
 import { openUserProfile } from "@/lib/profileNav";
+import { hasChannelPermission } from "@/lib/permissions/channelPermissions";
+import { UnreadBadge } from "@/components/chat/UnreadBadge";
 
 import authStore from "@/stores/AuthStore";
 import channelStore from "@/stores/ChannelStore";
@@ -97,6 +105,7 @@ function ChannelsPage() {
 
   const [avatarByUserId, setAvatarByUserId] = useState<Record<string, string>>({});
   const [toast, setToast] = useState<{ message: string; severity: "error" | "success" } | null>(null);
+  const [channelMeta, setChannelMeta] = useState<Record<string, ChatListMetaEntry>>({});
 
   const activeChannelIdRef = useRef<string | undefined>(undefined);
   const activeTopicIdRef = useRef<string | undefined>(undefined);
@@ -117,11 +126,39 @@ function ChannelsPage() {
     currentUserIdRef.current = currentUser?.id;
   }, [currentUser]);
 
+  // Seed chat-list activity (sort/unread/preview) once the current user is
+  // known — set during render rather than an effect, per React's guidance
+  // for resetting state when a prop/value changes.
+  const [channelMetaSeededFor, setChannelMetaSeededFor] = useState<string | undefined>(undefined);
+  if (currentUser && channelMetaSeededFor !== currentUser.id) {
+    setChannelMetaSeededFor(currentUser.id);
+    setChannelMeta(loadChatListMeta("channel", currentUser.id));
+  }
+
   const activeChannel = useMemo(
     () => channelStore.myChannels.find((c) => c.id === activeChannelId),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [channelStore.myChannels, activeChannelId],
   );
+
+  const sortedChannels = useMemo(() => {
+    return [...channelStore.myChannels].sort((a, b) => {
+      const at = channelMeta[a.id]?.lastMessageAt;
+      const bt = channelMeta[b.id]?.lastMessageAt;
+      if (!at && !bt) return 0;
+      if (!at) return 1;
+      if (!bt) return -1;
+      return new Date(bt).getTime() - new Date(at).getTime();
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [channelStore.myChannels, channelMeta]);
+
+  const isActiveChannelOwner = activeChannel ? activeChannel.creator_id === currentUser?.id : false;
+  const currentChannelMember = channelStore.channelMembers.find((m) => m.user_id === currentUser?.id);
+  const canManageTopics = hasChannelPermission(currentChannelMember, isActiveChannelOwner, "manage_topics");
+  const canDeleteOthersChannelMessages =
+    isActiveChannelOwner || hasChannelPermission(currentChannelMember, isActiveChannelOwner, "delete_messages");
+  const canUploadChannelMedia = hasChannelPermission(currentChannelMember, isActiveChannelOwner, "upload_media");
 
   const activeTopic = useMemo(
     () => channelStore.channelTopics.find((t) => t.id === activeTopicId),
@@ -164,9 +201,21 @@ function ChannelsPage() {
     }
 
     function handleMessageNew(data: ApiMessage) {
-      if (!data.channel_id || !isForActiveThread(data)) return;
-      const mapped = apiMessageToMessage(data);
-      setMessages((prev) => mergeMessage(prev, mapped));
+      if (!data.channel_id) return;
+      if (isForActiveThread(data)) {
+        const mapped = apiMessageToMessage(data);
+        setMessages((prev) => mergeMessage(prev, mapped));
+      }
+
+      const me = currentUserIdRef.current;
+      if (!me) return;
+      const isActiveChannel = data.channel_id === activeChannelIdRef.current;
+      const updated = upsertChatListMeta("channel", me, data.channel_id, {
+        lastMessageAt: data.created_at,
+        lastMessagePreview: previewFor(data),
+        incrementUnread: data.sender_id !== me && !isActiveChannel,
+      });
+      setChannelMeta(updated);
     }
 
     function handleMessageUpdated(data: ApiMessage) {
@@ -485,6 +534,11 @@ function ChannelsPage() {
     setSearchOpen(false);
     setGlobalSearchOpen(false);
 
+    if (result.isTitleMatch) {
+      setActiveChannelId(result.otherUserId);
+      return;
+    }
+
     if (result.otherUserId !== activeChannelIdRef.current) {
       pendingHighlightRef.current = result.id;
       setActiveChannelId(result.otherUserId);
@@ -641,25 +695,37 @@ function ChannelsPage() {
           </Box>
         ) : (
           <List sx={{ flex: 1, overflowY: "auto", py: 0.5 }}>
-            {channelStore.myChannels.map((channel) => (
-              <ListItemButton
-                key={channel.id}
-                selected={channel.id === activeChannelId}
-                onClick={() => setActiveChannelId(channel.id)}
-                sx={{ borderRadius: 3, mx: 1, py: 1 }}
-              >
-                <ListItemAvatar>
-                  <Avatar sx={{ bgcolor: chatSurfaces.raised }}>
-                    <TagRounded fontSize="small" />
-                  </Avatar>
-                </ListItemAvatar>
-                <ListItemText
-                  primary={channel.name}
-                  secondary={channel.description || "No description"}
-                  slotProps={{ primary: { noWrap: true }, secondary: { noWrap: true } }}
-                />
-              </ListItemButton>
-            ))}
+            {sortedChannels.map((channel) => {
+              const meta = channelMeta[channel.id];
+              const hasUnread = (meta?.unreadCount ?? 0) > 0;
+              return (
+                <ListItemButton
+                  key={channel.id}
+                  selected={channel.id === activeChannelId}
+                  onClick={() => {
+                    setActiveChannelId(channel.id);
+                    if (currentUser) setChannelMeta(markChatListMetaRead("channel", currentUser.id, channel.id));
+                  }}
+                  sx={{ borderRadius: 3, mx: 1, py: 1 }}
+                >
+                  <ListItemAvatar>
+                    <Avatar sx={{ bgcolor: chatSurfaces.raised }}>
+                      <TagRounded fontSize="small" />
+                    </Avatar>
+                  </ListItemAvatar>
+                  <ListItemText
+                    primary={
+                      <Typography variant="body2" noWrap sx={{ fontWeight: hasUnread ? 600 : 500 }}>
+                        {channel.name}
+                      </Typography>
+                    }
+                    secondary={meta?.lastMessagePreview || channel.description || "No description"}
+                    slotProps={{ secondary: { noWrap: true } }}
+                  />
+                  {hasUnread ? <UnreadBadge count={meta!.unreadCount} /> : null}
+                </ListItemButton>
+              );
+            })}
           </List>
         )}
       </Box>
@@ -678,7 +744,9 @@ function ChannelsPage() {
           <>
             <ChatHeader
               title={activeTopic ? `${activeChannel.name} / ${activeTopic.name}` : activeChannel.name}
-              subtitle={`${channelStore.channelMembers.length} members`}
+              subtitle={
+                activeTopic?.description || `${channelStore.channelMembers.length} members`
+              }
               onBack={() => setActiveChannelId(undefined)}
               onToggleSearch={() => setSearchOpen((v) => !v)}
               isSearchOpen={searchOpen}
@@ -694,7 +762,7 @@ function ChannelsPage() {
 
             <ChannelThreadsBar
               channelId={activeChannel.id}
-              isOwner={activeChannel.creator_id === currentUser.id}
+              canManageTopics={canManageTopics}
               activeTopicId={activeTopicId}
               onSelectTopic={handleSelectTopic}
             />
@@ -722,6 +790,7 @@ function ChannelsPage() {
               onEditMessage={handleEdit}
               onDeleteMessage={handleDelete}
               onRetryMessage={handleRetry}
+              canDeleteOthersMessages={canDeleteOthersChannelMessages}
               highlightMessageId={highlightMessageId}
               emptyState={loadingMessages ? "Loading…" : "No messages yet. Say hello!"}
             />
@@ -734,6 +803,7 @@ function ChannelsPage() {
               onTyping={handleTypingKeystroke}
               isSending={sending}
               placeholder={`Message #${activeTopic ? activeTopic.name : activeChannel.name}`}
+              canUploadMedia={canUploadChannelMedia}
             />
 
             <ChannelSettingsModal
@@ -804,7 +874,7 @@ function ChannelsPage() {
         onSearch={async (query) => {
           const res = await messagesApi.searchGlobal(query);
           if (groupStore.myGroups.length === 0) groupStore.loadMyGroups();
-          return mapGlobalSearchResults(res.data, currentUser.id);
+          return mapGlobalSearchResults(res.data, currentUser.id, query);
         }}
         onSelectResult={handleGlobalSearchResult}
       />

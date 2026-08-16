@@ -75,9 +75,8 @@ export type ChannelPermission =
   | "manage_channel"
   | "manage_topics"
   | "manage_channel_members"
-  | "send_messages"
-  | "edit_messages"
-  | "delete_messages";
+  | "delete_messages"
+  | "upload_media";
 
 export interface ChannelAccessRole {
   id: string;

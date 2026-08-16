@@ -6,6 +6,7 @@ import Stack from "@mui/material/Stack";
 import Box from "@mui/material/Box";
 import type { DmContact } from "@/lib/chat/dmContacts";
 import { chatSurfaces } from "@/lib/theme/theme";
+import { UnreadBadge } from "./UnreadBadge";
 
 export interface ConversationItemProps {
   contact: DmContact;
@@ -52,26 +53,7 @@ export function ConversationItem({ contact, isActive = false, onSelect }: Conver
           <Typography variant="caption" color={hasUnread ? "text.primary" : "text.secondary"} noWrap sx={{ flex: 1 }}>
             {contact.lastMessagePreview || "No messages yet"}
           </Typography>
-          {hasUnread ? (
-            <Box
-              sx={{
-                flexShrink: 0,
-                minWidth: 18,
-                height: 18,
-                borderRadius: "50%",
-                bgcolor: "primary.main",
-                color: "primary.contrastText",
-                fontSize: 11,
-                fontWeight: 600,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                px: 0.5,
-              }}
-            >
-              {contact.unreadCount > 99 ? "99+" : contact.unreadCount}
-            </Box>
-          ) : null}
+          {hasUnread ? <UnreadBadge count={contact.unreadCount} /> : null}
         </Stack>
       </Box>
     </ListItemButton>

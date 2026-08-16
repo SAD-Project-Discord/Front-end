@@ -1,6 +1,13 @@
 import type { ApiMessage } from "@/lib/api/messages";
 import type { Message } from "@/lib/types";
 
+/** Short text preview of a message for chat-list rows (content, or an attachment summary). */
+export function previewFor(apiMsg: ApiMessage): string {
+  if (apiMsg.content) return apiMsg.content;
+  if (apiMsg.media.length > 0) return apiMsg.media.length === 1 ? "Attachment" : `${apiMsg.media.length} attachments`;
+  return "";
+}
+
 export function apiMessageToMessage(api: ApiMessage): Message {
   return {
     id: api.id,

@@ -17,8 +17,9 @@ import KeyboardDoubleArrowDownRounded from "@mui/icons-material/KeyboardDoubleAr
 import ScheduleSendRounded from "@mui/icons-material/ScheduleSendRounded";
 import SettingsRounded from "@mui/icons-material/SettingsRounded";
 
+import { observer } from "mobx-react-lite";
 import type { Message, MessageAttachment, User } from "@/lib/types";
-import { getCachedUser, setCachedUser } from "@/lib/auth";
+import { getCachedUser } from "@/lib/auth";
 import { usersApi } from "@/lib/api/users";
 import { messagesApi } from "@/lib/api/messages";
 import type { ApiMessage } from "@/lib/api/messages";
@@ -27,7 +28,9 @@ import ScheduledMessagesDialog from "@/components/chat/ScheduledMessagesDialog";
 import { ApiError } from "@/lib/api/api";
 import { chatWs } from "@/lib/api/chat";
 import { loadDmContacts, markDmContactRead, upsertDmContact, type DmContact } from "@/lib/chat/dmContacts";
-import { apiMessageToMessage } from "@/lib/chat/mappers";
+import { apiMessageToMessage, previewFor } from "@/lib/chat/mappers";
+import { mapTitleMatches } from "@/lib/chat/globalSearch";
+import authStore from "@/stores/AuthStore";
 import groupStore from "@/stores/GroupStore";
 import channelStore from "@/stores/ChannelStore";
 
@@ -42,12 +45,6 @@ import { openUserProfile } from "@/lib/profileNav";
 
 const PAGE_SIZE = 30;
 const TYPING_STOP_DELAY_MS = 2000;
-
-function previewFor(apiMsg: ApiMessage): string {
-  if (apiMsg.content) return apiMsg.content;
-  if (apiMsg.media.length > 0) return apiMsg.media.length === 1 ? "Attachment" : `${apiMsg.media.length} attachments`;
-  return "";
-}
 
 function roomKeyFor(userA: string, userB: string): string {
   return `direct_${[userA, userB].sort().join("_")}`;
@@ -79,16 +76,18 @@ function DirectMessagesPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // Seeded synchronously from localStorage rather than via an effect: this
-  // page is only ever mounted client-side (the protected layout withholds
-  // rendering it until after the auth check settles), so there's no SSR
-  // markup to hydrate-mismatch against here.
-  const [currentUser, setCurrentUser] = useState<User | null>(() => {
-    const cached = getCachedUser();
-    return cached
-      ? { id: cached.id, username: cached.username, displayName: cached.name, avatarUrl: cached.avatar_url }
-      : null;
-  });
+  // Reactive read of the shared auth store (like channels/groups pages) so a
+  // profile edit elsewhere (e.g. a new avatar) shows up here immediately
+  // instead of requiring a full reload.
+  const authUser = authStore.user;
+  const currentUser = useMemo<User | null>(
+    () =>
+      authUser
+        ? { id: authUser.id, username: authUser.username, displayName: authUser.name, avatarUrl: authUser.avatar_url }
+        : null,
+    [authUser],
+  );
+
   const [contacts, setContacts] = useState<DmContact[]>(() => {
     const cached = getCachedUser();
     return cached ? sortByRecentActivity(loadDmContacts(cached.id)) : [];
@@ -138,32 +137,10 @@ function DirectMessagesPageInner() {
     return map;
   }, [currentUser, activeUser]);
 
-  // ---- bootstrap: refresh the cached user/profile in the background ----
+  // ---- bootstrap: rehydrate the user profile after a fresh page load ----
+  // (only tokens survive a hard refresh — see AuthStore.hydrateUser's doc comment)
   useEffect(() => {
-    let cancelled = false;
-    usersApi
-      .me()
-      .then((res) => {
-        if (cancelled) return;
-        setCurrentUser({
-          id: res.data.id,
-          username: res.data.username,
-          displayName: res.data.name,
-          avatarUrl: res.data.avatar_url,
-        });
-        setCachedUser({
-          id: res.data.id,
-          username: res.data.username,
-          name: res.data.name,
-          avatar_url: res.data.avatar_url,
-        });
-      })
-      .catch(() => {
-        // A 401 here is already handled by fetchApi's refresh/redirect flow.
-      });
-    return () => {
-      cancelled = true;
-    };
+    authStore.hydrateUser();
   }, []);
 
   // ---- websocket lifecycle (connect once per logged-in user) ----
@@ -478,6 +455,11 @@ function DirectMessagesPageInner() {
     async (result: MessageSearchResultItem) => {
       setConversationSearchOpen(false);
       setGlobalSearchOpen(false);
+
+      if (result.isTitleMatch) {
+        setActiveContactId(result.otherUserId);
+        return;
+      }
 
       if (result.otherUserId !== activeContactIdRef.current) {
         pendingHighlightRef.current = result.id;
@@ -825,7 +807,7 @@ function DirectMessagesPageInner() {
               } satisfies MessageSearchResultItem;
             }),
           );
-          return items;
+          return [...items, ...mapTitleMatches(query, currentUser.id, items)];
         }}
         onSelectResult={handleGlobalSearchResult}
       />
@@ -842,10 +824,12 @@ function DirectMessagesPageInner() {
   );
 }
 
+const ObservedDirectMessagesPageInner = observer(DirectMessagesPageInner);
+
 export default function DirectMessagesPage() {
   return (
     <Suspense fallback={null}>
-      <DirectMessagesPageInner />
+      <ObservedDirectMessagesPageInner />
     </Suspense>
   );
 }
