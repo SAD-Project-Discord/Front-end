@@ -23,7 +23,7 @@ import type { ChannelAccessRole, ChannelPermission } from "@/types/channel";
 
 interface ChannelRolesPanelProps {
   channelId: string;
-  isOwner: boolean;
+  canManageRoles: boolean;
 }
 
 const PERMISSION_LABELS: Record<ChannelPermission, string> = {
@@ -34,9 +34,8 @@ const PERMISSION_LABELS: Record<ChannelPermission, string> = {
   manage_channel: "Manage channel",
   manage_topics: "Manage threads",
   manage_channel_members: "Manage channel members",
-  send_messages: "Send messages",
-  edit_messages: "Edit messages",
   delete_messages: "Delete messages",
+  upload_media: "Upload media",
 };
 
 const CHANNEL_PERMISSIONS: ChannelPermission[] = [
@@ -45,9 +44,8 @@ const CHANNEL_PERMISSIONS: ChannelPermission[] = [
   "manage_roles",
   "manage_topics",
   "manage_invitations",
-  "send_messages",
-  "edit_messages",
   "delete_messages",
+  "upload_media",
 ];
 
 interface RoleFormValues {
@@ -57,7 +55,7 @@ interface RoleFormValues {
 
 const emptyForm: RoleFormValues = { name: "", permissions: new Set() };
 
-function ChannelRolesPanel({ channelId, isOwner }: ChannelRolesPanelProps) {
+function ChannelRolesPanel({ channelId, canManageRoles }: ChannelRolesPanelProps) {
   const [formOpen, setFormOpen] = useState(false);
   const [editingRoleId, setEditingRoleId] = useState<string | null>(null);
   const [form, setForm] = useState<RoleFormValues>(emptyForm);
@@ -124,7 +122,7 @@ function ChannelRolesPanel({ channelId, isOwner }: ChannelRolesPanelProps) {
     <Box>
       <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between", mb: 1 }}>
         <Typography variant="subtitle1">Custom roles ({channelStore.channelRoles.length})</Typography>
-        {isOwner && !formOpen ? (
+        {canManageRoles && !formOpen ? (
           <Tooltip title="Create role">
             <IconButton size="small" onClick={startCreate} aria-label="Create role">
               <AddRounded />
@@ -133,9 +131,9 @@ function ChannelRolesPanel({ channelId, isOwner }: ChannelRolesPanelProps) {
         ) : null}
       </Stack>
 
-      {!isOwner ? (
+      {!canManageRoles ? (
         <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-          Only the channel owner can manage roles.
+          You don&apos;t have permission to manage roles.
         </Typography>
       ) : null}
 
@@ -223,7 +221,7 @@ function ChannelRolesPanel({ channelId, isOwner }: ChannelRolesPanelProps) {
                     )}
                   </Stack>
                 </Box>
-                {isOwner ? (
+                {canManageRoles ? (
                   <Stack direction="row">
                     <Tooltip title="Edit role">
                       <IconButton size="small" onClick={() => startEdit(role)} aria-label={`Edit ${role.name}`}>

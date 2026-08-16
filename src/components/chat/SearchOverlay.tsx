@@ -32,6 +32,8 @@ export interface MessageSearchResultItem {
    * scope as the page they were searched from.
    */
   scope?: "direct" | "group" | "channel";
+  /** True for a chat-title match with no specific message to jump to — selecting it just opens the chat. */
+  isTitleMatch?: boolean;
 }
 
 export interface SearchOverlayProps {
@@ -155,17 +157,25 @@ export function SearchOverlay({
                       {result.otherUserName}
                     </Typography>
                   ) : null}
-                  <Typography variant="body2" color="text.secondary" sx={{ overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
-                    {result.content}
-                  </Typography>
-                  <Typography variant="caption" color="text.disabled">
-                    {new Date(result.createdAt).toLocaleString(undefined, {
-                      month: "short",
-                      day: "numeric",
-                      hour: "numeric",
-                      minute: "2-digit",
-                    })}
-                  </Typography>
+                  {result.isTitleMatch ? (
+                    <Typography variant="body2" color="text.secondary">
+                      Open {result.otherUserName}
+                    </Typography>
+                  ) : (
+                    <>
+                      <Typography variant="body2" color="text.secondary" sx={{ overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
+                        {result.content}
+                      </Typography>
+                      <Typography variant="caption" color="text.disabled">
+                        {new Date(result.createdAt).toLocaleString(undefined, {
+                          month: "short",
+                          day: "numeric",
+                          hour: "numeric",
+                          minute: "2-digit",
+                        })}
+                      </Typography>
+                    </>
+                  )}
                 </Box>
               </ListItemButton>
             ))}

@@ -13,10 +13,14 @@ import type { MessageSearchResultItem } from "@/components/chat/SearchOverlay";
  * (e.g. by calling `loadMyGroups`/`loadMyChannels`) before opening global
  * search from a page that doesn't already load them itself.
  */
-export function mapGlobalSearchResults(messages: ApiMessage[], currentUserId: string): MessageSearchResultItem[] {
+export function mapGlobalSearchResults(
+  messages: ApiMessage[],
+  currentUserId: string,
+  query?: string,
+): MessageSearchResultItem[] {
   const dmContacts = loadDmContacts(currentUserId);
 
-  return messages.map((m) => {
+  const contentMatches: MessageSearchResultItem[] = messages.map((m) => {
     if (m.group_id) {
       const group = groupStore.myGroups.find((g) => g.id === m.group_id);
       return {
@@ -56,4 +60,72 @@ export function mapGlobalSearchResults(messages: ApiMessage[], currentUserId: st
       scope: "direct",
     };
   });
+
+  if (!query?.trim()) return contentMatches;
+  return [...contentMatches, ...mapTitleMatches(query, currentUserId, contentMatches)];
+}
+
+/**
+ * Chats whose name matches the query but that have no message-content hit
+ * among `existingMatches` — so e.g. searching "dybudd" surfaces a chat named
+ * "howdybuddy" even though none of its messages contain that substring.
+ */
+export function mapTitleMatches(
+  query: string,
+  currentUserId: string,
+  existingMatches: MessageSearchResultItem[],
+): MessageSearchResultItem[] {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return [];
+
+  const alreadyMatchedIds = new Set(existingMatches.map((m) => m.otherUserId));
+  const results: MessageSearchResultItem[] = [];
+
+  for (const group of groupStore.myGroups) {
+    if (!alreadyMatchedIds.has(group.id) && group.name.toLowerCase().includes(needle)) {
+      results.push({
+        id: `title:group:${group.id}`,
+        content: "",
+        createdAt: group.updated_at ?? group.created_at ?? new Date().toISOString(),
+        senderId: "",
+        otherUserId: group.id,
+        otherUserName: group.name,
+        scope: "group",
+        isTitleMatch: true,
+      });
+    }
+  }
+
+  for (const channel of channelStore.myChannels) {
+    if (!alreadyMatchedIds.has(channel.id) && channel.name.toLowerCase().includes(needle)) {
+      results.push({
+        id: `title:channel:${channel.id}`,
+        content: "",
+        createdAt: channel.updated_at ?? channel.created_at ?? new Date().toISOString(),
+        senderId: "",
+        otherUserId: channel.id,
+        otherUserName: channel.name,
+        scope: "channel",
+        isTitleMatch: true,
+      });
+    }
+  }
+
+  for (const contact of loadDmContacts(currentUserId)) {
+    if (!alreadyMatchedIds.has(contact.userId) && contact.name.toLowerCase().includes(needle)) {
+      results.push({
+        id: `title:direct:${contact.userId}`,
+        content: "",
+        createdAt: contact.lastMessageAt || new Date().toISOString(),
+        senderId: "",
+        otherUserId: contact.userId,
+        otherUserName: contact.name,
+        otherUserAvatarUrl: contact.avatarUrl,
+        scope: "direct",
+        isTitleMatch: true,
+      });
+    }
+  }
+
+  return results;
 }

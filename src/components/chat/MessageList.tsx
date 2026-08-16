@@ -21,6 +21,8 @@ export interface MessageListProps {
   onEditMessage?: (message: Message, newContent: string) => void;
   onDeleteMessage?: (message: Message) => void;
   onRetryMessage?: (message: Message) => void;
+  /** Owner/admin/permission-holders can delete other members' messages in this conversation. */
+  canDeleteOthersMessages?: boolean;
   /** Scrolls to and briefly highlights this message (used by search "jump to message"). */
   highlightMessageId?: string;
   emptyState?: React.ReactNode;
@@ -42,6 +44,7 @@ export function MessageList({
   onEditMessage,
   onDeleteMessage,
   onRetryMessage,
+  canDeleteOthersMessages = false,
   highlightMessageId,
   emptyState,
 }: MessageListProps) {
@@ -152,6 +155,7 @@ export function MessageList({
               message={message}
               sender={sender}
               isOwnMessage={message.senderId === currentUserId}
+              canDeleteOthers={canDeleteOthersMessages}
               isGroupedWithPrevious={isGroupedWithPrevious}
               onEdit={onEditMessage}
               onDelete={onDeleteMessage}

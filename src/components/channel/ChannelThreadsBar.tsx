@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Box, Chip, CircularProgress, Stack } from "@mui/material";
+import { Box, Chip, CircularProgress, Stack, Tooltip } from "@mui/material";
 import { AddRounded, TagRounded } from "@mui/icons-material";
 import { observer } from "mobx-react-lite";
 import channelStore from "@/stores/ChannelStore";
@@ -9,12 +9,12 @@ import CreateTopicModal from "@/components/channel/CreateTopicModal";
 
 interface ChannelThreadsBarProps {
   channelId: string;
-  isOwner: boolean;
+  canManageTopics: boolean;
   activeTopicId: string | undefined;
   onSelectTopic: (topicId: string | undefined) => void;
 }
 
-function ChannelThreadsBar({ channelId, isOwner, activeTopicId, onSelectTopic }: ChannelThreadsBarProps) {
+function ChannelThreadsBar({ channelId, canManageTopics, activeTopicId, onSelectTopic }: ChannelThreadsBarProps) {
   const [createOpen, setCreateOpen] = useState(false);
 
   useEffect(() => {
@@ -37,7 +37,7 @@ function ChannelThreadsBar({ channelId, isOwner, activeTopicId, onSelectTopic }:
     );
   }
 
-  if (channelStore.channelTopics.length === 0 && !isOwner) {
+  if (channelStore.channelTopics.length === 0 && !canManageTopics) {
     return null;
   }
 
@@ -64,18 +64,19 @@ function ChannelThreadsBar({ channelId, isOwner, activeTopicId, onSelectTopic }:
           onClick={() => onSelectTopic(undefined)}
         />
         {channelStore.channelTopics.map((topic) => (
-          <Chip
-            key={topic.id}
-            icon={<TagRounded fontSize="small" />}
-            label={topic.name}
-            size="small"
-            color={activeTopicId === topic.id ? "primary" : "default"}
-            variant={activeTopicId === topic.id ? "filled" : "outlined"}
-            onClick={() => onSelectTopic(topic.id)}
-            onDelete={isOwner ? () => handleDeleteTopic(topic.id) : undefined}
-          />
+          <Tooltip key={topic.id} title={topic.description || ""} disableHoverListener={!topic.description}>
+            <Chip
+              icon={<TagRounded fontSize="small" />}
+              label={topic.name}
+              size="small"
+              color={activeTopicId === topic.id ? "primary" : "default"}
+              variant={activeTopicId === topic.id ? "filled" : "outlined"}
+              onClick={() => onSelectTopic(topic.id)}
+              onDelete={canManageTopics ? () => handleDeleteTopic(topic.id) : undefined}
+            />
+          </Tooltip>
         ))}
-        {isOwner ? (
+        {canManageTopics ? (
           <Chip
             icon={<AddRounded fontSize="small" />}
             label="New thread"

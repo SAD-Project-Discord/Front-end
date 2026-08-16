@@ -3,7 +3,11 @@ import { fetchApi } from "./api";
 import type { ApiMedia } from "./messages";
 
 export const storageApi = {
-  /** Uploads a single file and returns the media object to attach to a message. */
+  /**
+   * Uploads a single file and returns the media object to attach to a message.
+   * .m4a/.avi/.zip are currently rejected server-side — see
+   * docs/BACKEND_REQUIREMENTS_PERMISSIONS_AND_MESSAGING.md.
+   */
   upload: (file: File): Promise<{ success: true; data: ApiMedia }> => {
     const formData = new FormData();
     formData.append("file", file);

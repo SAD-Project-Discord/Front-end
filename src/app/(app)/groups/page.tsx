@@ -48,10 +48,17 @@ import ScheduledMessagesDialog from "@/components/chat/ScheduledMessagesDialog";
 import { ApiError } from "@/lib/api/api";
 import { usersApi } from "@/lib/api/users";
 import { chatWs } from "@/lib/api/chat";
-import { apiMessageToMessage } from "@/lib/chat/mappers";
+import { apiMessageToMessage, previewFor } from "@/lib/chat/mappers";
 import { mapGlobalSearchResults } from "@/lib/chat/globalSearch";
+import {
+  loadChatListMeta,
+  markChatListMetaRead,
+  upsertChatListMeta,
+  type ChatListMetaEntry,
+} from "@/lib/chat/chatListMeta";
 import { chatSurfaces } from "@/lib/theme/theme";
 import { openUserProfile } from "@/lib/profileNav";
+import { UnreadBadge } from "@/components/chat/UnreadBadge";
 
 import authStore from "@/stores/AuthStore";
 import groupStore from "@/stores/GroupStore";
@@ -114,6 +121,7 @@ function GroupsPage() {
 
   const [avatarByUserId, setAvatarByUserId] = useState<Record<string, string>>({});
   const [toast, setToast] = useState<{ message: string; severity: "error" | "success" } | null>(null);
+  const [groupMeta, setGroupMeta] = useState<Record<string, ChatListMetaEntry>>({});
 
   const activeGroupIdRef = useRef<string | undefined>(undefined);
   const currentUserIdRef = useRef<string | undefined>(undefined);
@@ -130,11 +138,32 @@ function GroupsPage() {
     currentUserIdRef.current = currentUser?.id;
   }, [currentUser]);
 
+  // Seed chat-list activity (sort/unread/preview) once the current user is
+  // known — set during render rather than an effect, per React's guidance
+  // for resetting state when a prop/value changes.
+  const [groupMetaSeededFor, setGroupMetaSeededFor] = useState<string | undefined>(undefined);
+  if (currentUser && groupMetaSeededFor !== currentUser.id) {
+    setGroupMetaSeededFor(currentUser.id);
+    setGroupMeta(loadChatListMeta("group", currentUser.id));
+  }
+
   const activeGroup = useMemo(
     () => groupStore.myGroups.find((g) => g.id === activeGroupId),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [groupStore.myGroups, activeGroupId],
   );
+
+  const sortedGroups = useMemo(() => {
+    return [...groupStore.myGroups].sort((a, b) => {
+      const at = groupMeta[a.id]?.lastMessageAt;
+      const bt = groupMeta[b.id]?.lastMessageAt;
+      if (!at && !bt) return 0;
+      if (!at) return 1;
+      if (!bt) return -1;
+      return new Date(bt).getTime() - new Date(at).getTime();
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groupStore.myGroups, groupMeta]);
 
   const isOwner = activeGroup?.creator_id === currentUser?.id;
   const leaveMenuLabel = isOwner ? "Leave and delete group" : "Leave group";
@@ -172,9 +201,19 @@ function GroupsPage() {
     function handleMessageNew(data: ApiMessage) {
       if (!data.group_id) return;
       const mapped = apiMessageToMessage(data);
-      if (data.group_id === activeGroupIdRef.current) {
+      const isActive = data.group_id === activeGroupIdRef.current;
+      if (isActive) {
         setMessages((prev) => mergeMessage(prev, mapped));
       }
+
+      const me = currentUserIdRef.current;
+      if (!me) return;
+      const updated = upsertChatListMeta("group", me, data.group_id, {
+        lastMessageAt: data.created_at,
+        lastMessagePreview: previewFor(data),
+        incrementUnread: data.sender_id !== me && !isActive,
+      });
+      setGroupMeta(updated);
     }
 
     function handleMessageUpdated(data: ApiMessage) {
@@ -514,6 +553,11 @@ function GroupsPage() {
     setSearchOpen(false);
     setGlobalSearchOpen(false);
 
+    if (result.isTitleMatch) {
+      setActiveGroupId(result.otherUserId);
+      return;
+    }
+
     if (result.otherUserId !== activeGroupIdRef.current) {
       pendingHighlightRef.current = result.id;
       setActiveGroupId(result.otherUserId);
@@ -682,23 +726,37 @@ function GroupsPage() {
           </Box>
         ) : (
           <List sx={{ flex: 1, overflowY: "auto", py: 0.5 }}>
-            {groupStore.myGroups.map((group) => (
-              <ListItemButton
-                key={group.id}
-                selected={group.id === activeGroupId}
-                onClick={() => setActiveGroupId(group.id)}
-                sx={{ borderRadius: 3, mx: 1, py: 1 }}
-              >
-                <ListItemAvatar>
-                  <Avatar sx={{ bgcolor: chatSurfaces.raised }}>{group.name.charAt(0).toUpperCase()}</Avatar>
-                </ListItemAvatar>
-                <ListItemText
-                  primary={group.name}
-                  secondary={`${group.member_count} member${group.member_count === 1 ? "" : "s"}`}
-                  slotProps={{ primary: { noWrap: true }, secondary: { noWrap: true } }}
-                />
-              </ListItemButton>
-            ))}
+            {sortedGroups.map((group) => {
+              const meta = groupMeta[group.id];
+              const hasUnread = (meta?.unreadCount ?? 0) > 0;
+              return (
+                <ListItemButton
+                  key={group.id}
+                  selected={group.id === activeGroupId}
+                  onClick={() => {
+                    setActiveGroupId(group.id);
+                    if (currentUser) setGroupMeta(markChatListMetaRead("group", currentUser.id, group.id));
+                  }}
+                  sx={{ borderRadius: 3, mx: 1, py: 1 }}
+                >
+                  <ListItemAvatar>
+                    <Avatar sx={{ bgcolor: chatSurfaces.raised }}>{group.name.charAt(0).toUpperCase()}</Avatar>
+                  </ListItemAvatar>
+                  <ListItemText
+                    primary={
+                      <Typography variant="body2" noWrap sx={{ fontWeight: hasUnread ? 600 : 500 }}>
+                        {group.name}
+                      </Typography>
+                    }
+                    secondary={
+                      meta?.lastMessagePreview || `${group.member_count} member${group.member_count === 1 ? "" : "s"}`
+                    }
+                    slotProps={{ secondary: { noWrap: true } }}
+                  />
+                  {hasUnread ? <UnreadBadge count={meta!.unreadCount} /> : null}
+                </ListItemButton>
+              );
+            })}
           </List>
         )}
       </Box>
@@ -754,6 +812,7 @@ function GroupsPage() {
               onEditMessage={handleEdit}
               onDeleteMessage={handleDelete}
               onRetryMessage={handleRetry}
+              canDeleteOthersMessages={isOwner}
               highlightMessageId={highlightMessageId}
               emptyState={loadingMessages ? "Loading…" : "No messages yet. Say hello!"}
             />
@@ -881,7 +940,7 @@ function GroupsPage() {
         onSearch={async (query) => {
           const res = await messagesApi.searchGlobal(query);
           if (channelStore.myChannels.length === 0) channelStore.loadMyChannels();
-          return mapGlobalSearchResults(res.data, currentUser.id);
+          return mapGlobalSearchResults(res.data, currentUser.id, query);
         }}
         onSelectResult={handleGlobalSearchResult}
       />

@@ -12,6 +12,8 @@ import Tooltip from "@mui/material/Tooltip";
 import Popover from "@mui/material/Popover";
 import Button from "@mui/material/Button";
 import Typography from "@mui/material/Typography";
+import Snackbar from "@mui/material/Snackbar";
+import Alert from "@mui/material/Alert";
 import AttachFileRoundedIcon from "@mui/icons-material/AttachFileRounded";
 import EmojiEmotionsRoundedIcon from "@mui/icons-material/EmojiEmotionsRounded";
 import StickyNote2RoundedIcon from "@mui/icons-material/StickyNote2Rounded";
@@ -47,6 +49,8 @@ export interface ChatInputProps {
   disabled?: boolean;
   isSending?: boolean;
   placeholder?: string;
+  /** Whether this member may attach files/stickers in this conversation (channels only; defaults to allowed). */
+  canUploadMedia?: boolean;
 }
 
 export function ChatInput({
@@ -58,6 +62,7 @@ export function ChatInput({
   disabled = false,
   isSending = false,
   placeholder = "Message…",
+  canUploadMedia = true,
 }: ChatInputProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [pending, setPending] = useState<PendingAttachment[]>([]);
@@ -66,6 +71,7 @@ export function ChatInput({
   const [scheduleAnchor, setScheduleAnchor] = useState<HTMLElement | null>(null);
   const [scheduleValue, setScheduleValue] = useState("");
   const [scheduleError, setScheduleError] = useState<string | null>(null);
+  const [stickerError, setStickerError] = useState<string | null>(null);
 
   const isUploading = pending.some((p) => p.status === "uploading");
   const readyAttachments = pending.filter((p) => p.status === "done" && p.attachment).map((p) => p.attachment!);
@@ -119,6 +125,31 @@ export function ChatInput({
     setPending((prev) => prev.filter((p) => p.localId !== localId));
   }
 
+  async function sendSticker(sticker: { id: string; url: string }) {
+    try {
+      const res = await fetch(sticker.url);
+      if (!res.ok) throw new Error("Could not load sticker image");
+      const blob = await res.blob();
+      const file = new File([blob], `sticker-${sticker.id}.png`, { type: blob.type || "image/png" });
+      // Stickers aren't real uploaded media on the backend, so re-upload the
+      // image as a genuine attachment first — sending the sticker catalog id
+      // directly as a media_id gets rejected by the backend as unknown media.
+      const uploaded = await storageApi.upload(file);
+      onSend("", [
+        {
+          id: uploaded.data.id,
+          type: uploaded.data.media_type,
+          fileName: uploaded.data.filename,
+          mimeType: uploaded.data.content_type,
+          sizeBytes: uploaded.data.size,
+          fileUrl: uploaded.data.file_url,
+        },
+      ]);
+    } catch (err) {
+      setStickerError(err instanceof ApiError ? err.message : "Failed to send sticker");
+    }
+  }
+
   function openSchedulePopover(event: React.MouseEvent<HTMLElement>) {
     setScheduleError(null);
     setScheduleValue(toDatetimeLocalValue(new Date(Date.now() + 5 * 60 * 1000)));
@@ -166,14 +197,18 @@ export function ChatInput({
         spacing={0.5}
         sx={{ alignItems: "center", bgcolor: "action.hover", borderRadius: 4, px: 1, py: 0.5, opacity: disabled ? 0.6 : 1 }}
       >
-        <input ref={fileInputRef} type="file" multiple hidden onChange={handleFileChange} disabled={disabled} />
-        <IconButton
-          disabled={disabled}
-          onClick={() => fileInputRef.current?.click()}
-          aria-label="Attach a file"
-        >
-          <AttachFileRoundedIcon />
-        </IconButton>
+        <input ref={fileInputRef} type="file" multiple hidden onChange={handleFileChange} disabled={disabled || !canUploadMedia} />
+        <Tooltip title={canUploadMedia ? "Attach a file" : "You don't have permission to upload media here"}>
+          <span>
+            <IconButton
+              disabled={disabled || !canUploadMedia}
+              onClick={() => fileInputRef.current?.click()}
+              aria-label="Attach a file"
+            >
+              <AttachFileRoundedIcon />
+            </IconButton>
+          </span>
+        </Tooltip>
 
         <TextField
           value={value}
@@ -192,13 +227,17 @@ export function ChatInput({
           sx={{ px: 0.5, py: 0.75 }}
         />
 
-        <IconButton
-          disabled={disabled}
-          onClick={(e) => setStickerAnchor(e.currentTarget)}
-          aria-label="Send a sticker"
-        >
-          <StickyNote2RoundedIcon />
-        </IconButton>
+        <Tooltip title={canUploadMedia ? "Send a sticker" : "You don't have permission to upload media here"}>
+          <span>
+            <IconButton
+              disabled={disabled || !canUploadMedia}
+              onClick={(e) => setStickerAnchor(e.currentTarget)}
+              aria-label="Send a sticker"
+            >
+              <StickyNote2RoundedIcon />
+            </IconButton>
+          </span>
+        </Tooltip>
         <IconButton
           disabled={disabled}
           onClick={(e) => setEmojiAnchor(e.currentTarget)}
@@ -244,14 +283,17 @@ export function ChatInput({
       <StickerPicker
         anchorEl={stickerAnchor}
         onClose={() => setStickerAnchor(null)}
-        // No sticker packs are seeded on the backend yet, so this path is
-        // unverified against a live sticker id — revisit once real packs exist.
-        onSelect={(sticker) =>
-          onSend("", [
-            { id: sticker.id, type: "image", fileName: "sticker", mimeType: "image/png", sizeBytes: 0, fileUrl: sticker.url },
-          ])
-        }
+        onSelect={(sticker) => {
+          setStickerAnchor(null);
+          void sendSticker(sticker);
+        }}
       />
+
+      <Snackbar open={Boolean(stickerError)} autoHideDuration={4000} onClose={() => setStickerError(null)}>
+        <Alert severity="error" onClose={() => setStickerError(null)} sx={{ width: "100%" }}>
+          {stickerError}
+        </Alert>
+      </Snackbar>
 
       <Popover
         open={Boolean(scheduleAnchor)}

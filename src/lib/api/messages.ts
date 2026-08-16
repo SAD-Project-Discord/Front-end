@@ -126,7 +126,9 @@ export const messagesApi = {
   },
 
   /**
-   * Soft delete a message (sender only) -> returns 204 No Content
+   * Soft delete a message (sender only, per the backend today) -> returns 204 No Content.
+   * The frontend now also shows this for channel owner/admin/`delete_messages`-holders
+   * and group owners deleting others' messages — see docs/BACKEND_REQUIREMENTS_PERMISSIONS_AND_MESSAGING.md.
    */
   deleteMessage: (messageId: string): Promise<void> => {
     return fetchApi<void>(`/messages/${messageId}`, {
