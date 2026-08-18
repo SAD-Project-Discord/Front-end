@@ -1,5 +1,11 @@
-import { Avatar, Box, Card, Divider, IconButton, Stack, Tooltip, Typography } from "@mui/material";
-import { ArrowBackRounded, EditRounded } from "@mui/icons-material";
+import { Alert, Avatar, Box, Button, Card, Divider, IconButton, Stack, Tooltip, Typography } from "@mui/material";
+import {
+  ArrowBackRounded,
+  ChatBubbleOutlineRounded,
+  EditRounded,
+  PersonAddRounded,
+  PersonRemoveRounded,
+} from "@mui/icons-material";
 
 interface ProfileUser {
   username: string;
@@ -13,11 +19,26 @@ interface ProfileViewProps {
   user: ProfileUser;
   onBack?: () => void;
   onEdit?: () => void;
+  onMessage?: () => void;
+  onContactToggle?: () => void;
+  isContact?: boolean;
+  isContactWorking?: boolean;
+  contactError?: string | null;
   /** Strip the outer card chrome (border/shadow/max-width) — used inside a Dialog that already provides it. */
   embedded?: boolean;
 }
 
-export default function ProfileView({ user, onBack, onEdit, embedded = false }: ProfileViewProps) {
+export default function ProfileView({
+  user,
+  onBack,
+  onEdit,
+  onMessage,
+  onContactToggle,
+  isContact = false,
+  isContactWorking = false,
+  contactError,
+  embedded = false,
+}: ProfileViewProps) {
   const avatarFallback = user.name.trim().charAt(0).toUpperCase() || "?";
 
   return (
@@ -64,6 +85,29 @@ export default function ProfileView({ user, onBack, onEdit, embedded = false }: 
         {user.email ? (
           <Typography color="text.secondary">{user.email}</Typography>
         ) : null}
+
+        {onMessage || onContactToggle ? (
+          <Stack direction={{ xs: "column", sm: "row" }} spacing={1.25} sx={{ width: "100%", justifyContent: "center", pt: 1.5 }}>
+            {onMessage ? (
+              <Button variant="contained" startIcon={<ChatBubbleOutlineRounded />} onClick={onMessage}>
+                Message
+              </Button>
+            ) : null}
+            {onContactToggle ? (
+              <Button
+                variant="outlined"
+                color={isContact ? "error" : "primary"}
+                startIcon={isContact ? <PersonRemoveRounded /> : <PersonAddRounded />}
+                disabled={isContactWorking}
+                onClick={onContactToggle}
+              >
+                {isContactWorking ? "Working…" : isContact ? "Remove contact" : "Add contact"}
+              </Button>
+            ) : null}
+          </Stack>
+        ) : null}
+
+        {contactError ? <Alert severity="error" sx={{ width: "100%", mt: 1.5 }}>{contactError}</Alert> : null}
       </Stack>
 
       <Divider sx={{ my: 3 }} />

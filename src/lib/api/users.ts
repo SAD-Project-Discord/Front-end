@@ -9,6 +9,8 @@ export interface ApiUser {
   name: string;
   bio: string;
   avatar_url: string;
+  /** Present on public profiles and search results. */
+  is_contact?: boolean;
   created_at: string;
   updated_at: string;
 }

@@ -213,38 +213,47 @@ function AddMembersModal({
               </Typography>
             </Box>
           ) : (
-            <List disablePadding>
-              {users.map((user) => {
-                const already = existingSet.has(user.id);
-                const checked = already || selected.has(user.id);
+            <>
+              <List disablePadding>
+                {users.map((user) => {
+                  const already = existingSet.has(user.id);
+                  const checked = already || selected.has(user.id);
 
-                return (
-                  <ListItem
-                    key={user.id}
-                    disablePadding
-                    secondaryAction={
-                      already ? <Chip label="Member" size="small" /> : null
-                    }
-                  >
-                    <ListItemButton dense disabled={already} onClick={() => toggle(user)}>
-                      <ListItemIcon sx={{ minWidth: 0, mr: 1 }}>
-                        <Checkbox
-                          edge="start"
-                          checked={checked}
-                          disabled={already}
-                          tabIndex={-1}
-                          disableRipple
-                        />
-                      </ListItemIcon>
-                      <ListItemAvatar>
-                        <Avatar src={user.avatar_url || undefined}>{getInitials(user)}</Avatar>
-                      </ListItemAvatar>
-                      <ListItemText primary={user.name} secondary={`@${user.username}`} />
-                    </ListItemButton>
-                  </ListItem>
-                );
-              })}
-            </List>
+                  return (
+                    <ListItem
+                      key={user.id}
+                      disablePadding
+                      secondaryAction={
+                        already ? <Chip label="Member" size="small" /> : null
+                      }
+                    >
+                      <ListItemButton dense disabled={already} onClick={() => toggle(user)}>
+                        <ListItemIcon sx={{ minWidth: 0, mr: 1 }}>
+                          <Checkbox
+                            edge="start"
+                            checked={checked}
+                            disabled={already}
+                            tabIndex={-1}
+                            disableRipple
+                          />
+                        </ListItemIcon>
+                        <ListItemAvatar>
+                          <Avatar src={user.avatar_url || undefined}>{getInitials(user)}</Avatar>
+                        </ListItemAvatar>
+                        <ListItemText primary={user.name} secondary={`@${user.username}`} />
+                      </ListItemButton>
+                    </ListItem>
+                  );
+                })}
+              </List>
+              {!searching && contactStore.hasMore ? (
+                <Box sx={{ display: "flex", justifyContent: "center", p: 1 }}>
+                  <Button size="small" disabled={contactStore.isLoadingMore} onClick={() => contactStore.loadMore()}>
+                    {contactStore.isLoadingMore ? "Loading…" : "Load more"}
+                  </Button>
+                </Box>
+              ) : null}
+            </>
           )}
         </Box>
 

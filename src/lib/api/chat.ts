@@ -1,6 +1,7 @@
 // src/lib/api/chat.ts
 import type { ApiMessage } from './messages';
 import type { GroupInvitationInfo } from '@/types/group';
+import type { PublicUserProfile } from '@/types/user';
 
 const WS_BASE_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000/ws/v1';
 
@@ -21,6 +22,8 @@ export type WsIncoming =
   | { event: "group.member_removed"; data: { group_id: string; user_id: string; removed_by: string } }
   | { event: "channel.member_removed"; data: { channel_id: string; user_id: string; removed_by: string } }
   | { event: "group.invitation.received"; data: GroupInvitationInfo }
+  | { event: "contact.added"; data: { user_id: string; contact: PublicUserProfile } }
+  | { event: "contact.removed"; data: { user_id: string } }
   | { event: "error"; data: { code: string; message: string } };
 
 type EventDataOf<E extends WsIncoming["event"]> = Extract<WsIncoming, { event: E }>["data"];
@@ -29,6 +32,7 @@ type EventHandler<E extends WsIncoming["event"] = WsIncoming["event"]> = (data: 
 export class ChatWebSocketClient {
   private ws: WebSocket | null = null;
   private eventHandlers: Map<string, Set<(data: unknown) => void>> = new Map();
+  private connectionUsers = 0;
 
   connect() {
     if (typeof window === 'undefined') return;
@@ -36,6 +40,11 @@ export class ChatWebSocketClient {
     const token = localStorage.getItem('access_token');
     if (!token) {
       console.error('No access token found for WebSocket connection');
+      return;
+    }
+
+    this.connectionUsers += 1;
+    if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
       return;
     }
 
@@ -55,6 +64,7 @@ export class ChatWebSocketClient {
     };
 
     this.ws.onclose = (event: CloseEvent) => {
+      this.ws = null;
       if (event.code === 4401) {
         console.error("Unauthorized — refresh token required");
       }
@@ -63,7 +73,8 @@ export class ChatWebSocketClient {
   }
 
   disconnect() {
-    if (this.ws) {
+    this.connectionUsers = Math.max(0, this.connectionUsers - 1);
+    if (this.connectionUsers === 0 && this.ws) {
       this.ws.close();
       this.ws = null;
     }

@@ -6,8 +6,9 @@ import Box from '@mui/material/Box';
 import { isAuthenticated } from '@/lib/auth';
 import { SectionNavRail } from '@/components/nav/SectionNavRail';
 import ProfileModalHost from '@/components/profile/ProfileModalHost';
+import ContactRealtimeSync from '@/components/contacts/ContactRealtimeSync';
 
-const SECTIONS_WITH_RAIL = ['/dm', '/groups', '/channels'];
+const SECTIONS_WITH_RAIL = ['/dm', '/contacts', '/groups', '/channels'];
 
 export default function ProtectedLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
@@ -43,6 +44,7 @@ export default function ProtectedLayout({ children }: { children: ReactNode }) {
         children
       )}
       <ProfileModalHost />
+      <ContactRealtimeSync />
     </>
   );
 }
