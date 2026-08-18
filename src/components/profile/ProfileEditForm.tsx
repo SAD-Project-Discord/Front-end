@@ -326,6 +326,7 @@ function ProfileEditForm({ user, onCancel, onSaved, embedded = false }: ProfileE
           fullWidth
           multiline
           minRows={4}
+          maxRows={6}
           disabled={isSaving}
           placeholder="Tell people a little about yourself"
         />

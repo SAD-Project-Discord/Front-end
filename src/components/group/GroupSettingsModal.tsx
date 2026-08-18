@@ -299,9 +299,10 @@ function GroupSettingsModal({ open, onClose, groupId, onUpdated, onDeleted }: Gr
                   placeholder="Project Team"
                   value={values.name}
                   onChange={handleChange("name")}
-                  autoFocus
+                  autoFocus={isAdmin}
                   required
-                  disabled={!isAdmin || isWorking}
+                  disabled={isWorking}
+                  slotProps={{ input: { readOnly: !isAdmin } }}
                 />
 
                 <IconTextField
@@ -312,7 +313,8 @@ function GroupSettingsModal({ open, onClose, groupId, onUpdated, onDeleted }: Gr
                   onChange={handleChange("description")}
                   multiline
                   minRows={3}
-                  disabled={!isAdmin || isWorking}
+                  disabled={isWorking}
+                  slotProps={{ input: { readOnly: !isAdmin } }}
                 />
 
 

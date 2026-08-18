@@ -251,8 +251,11 @@ function ChannelSettingsModal({
                       onChange={handleFieldChange(setName)}
                       required
                       fullWidth
-                      disabled={!canManageChannel || isWorking}
-                      slotProps={{ htmlInput: { maxLength: 100 } }}
+                      disabled={isWorking}
+                      slotProps={{
+                        input: { readOnly: !canManageChannel },
+                        htmlInput: { maxLength: 100 },
+                      }}
                     />
                     <TextField
                       label="Description"
@@ -261,7 +264,9 @@ function ChannelSettingsModal({
                       fullWidth
                       multiline
                       minRows={3}
-                      disabled={!canManageChannel || isWorking}
+                      maxRows={6}
+                      disabled={isWorking}
+                      slotProps={{ input: { readOnly: !canManageChannel } }}
                       placeholder="What is this channel for?"
                     />
 
