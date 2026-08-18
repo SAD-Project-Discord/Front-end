@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ChangeEvent, type FormEvent } from "react";
+import { useState, useEffect, type ChangeEvent, type FormEvent } from "react";
 import { Alert, Box, Button, Stack } from "@mui/material";
 import { AccountCircle, Email, ArrowForward } from "@mui/icons-material";
 import { useRouter } from "next/navigation";
@@ -20,6 +20,11 @@ interface LoginFormValues {
 
 function LoginPage() {
   const router = useRouter();
+  useEffect(() => {
+    if (authStore.isAuthenticated) {
+      router.replace("/");
+    }
+  }, [authStore.isAuthenticated, router]);
   const [values, setValues] = useState<LoginFormValues>({ email: "", password: "" });
   const [formError, setFormError] = useState<string | null>(null);
 
