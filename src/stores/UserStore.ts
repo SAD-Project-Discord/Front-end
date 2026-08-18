@@ -1,14 +1,16 @@
 import { makeAutoObservable, runInAction } from "mobx";
 
 import userService from "@/services/user.service";
-import type { User } from "@/types/auth";
+import type { PublicUserProfile } from "@/types/user";
 
 class UserStore {
-  searchResults: User[] = [];
+  searchResults: PublicUserProfile[] = [];
 
   isSearching = false;
 
   error: string | null = null;
+
+  private requestVersion = 0;
 
   constructor() {
     makeAutoObservable(this);
@@ -19,9 +21,16 @@ class UserStore {
   }
 
   clearSearch() {
+    this.requestVersion += 1;
     this.searchResults = [];
     this.isSearching = false;
     this.error = null;
+  }
+
+  setContactStatus(userId: string, isContact: boolean) {
+    this.searchResults = this.searchResults.map((user) =>
+      user.id === userId ? { ...user, is_contact: isContact } : user,
+    );
   }
 
   async searchUsers(query: string): Promise<void> {
@@ -32,16 +41,19 @@ class UserStore {
       return;
     }
 
+    const version = ++this.requestVersion;
     this.isSearching = true;
     this.setError(null);
 
     try {
       const response = await userService.searchUsers(trimmed);
 
+      if (version !== this.requestVersion) return;
       runInAction(() => {
         this.searchResults = response.data;
       });
     } catch (error: unknown) {
+      if (version !== this.requestVersion) return;
       runInAction(() => {
         const responseMessage =
           error && typeof error === "object" && "response" in error
@@ -54,9 +66,11 @@ class UserStore {
         this.searchResults = [];
       });
     } finally {
-      runInAction(() => {
-        this.isSearching = false;
-      });
+      if (version === this.requestVersion) {
+        runInAction(() => {
+          this.isSearching = false;
+        });
+      }
     }
   }
 }

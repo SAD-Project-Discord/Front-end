@@ -19,6 +19,7 @@ import ListItemAvatar from "@mui/material/ListItemAvatar";
 import ListItemText from "@mui/material/ListItemText";
 import { observer } from "mobx-react-lite";
 import userStore from "@/stores/UserStore";
+import contactStore from "@/stores/ContactStore";
 
 export interface ResolvedUser {
   id: string;
@@ -49,6 +50,7 @@ function NewDirectMessageDialogImpl({ open, onClose, onStart, currentUserId }: N
   useEffect(() => {
     if (!open) return;
     userStore.clearSearch();
+    contactStore.loadContacts();
   }, [open]);
 
   useEffect(() => {
@@ -59,7 +61,11 @@ function NewDirectMessageDialogImpl({ open, onClose, onStart, currentUserId }: N
     return () => clearTimeout(handle);
   }, [query]);
 
-  const results = userStore.searchResults.filter((u) => u.id !== currentUserId);
+  const searching = query.trim().length > 0;
+  const results = (searching ? userStore.searchResults : contactStore.contacts)
+    .filter((u) => u.id !== currentUserId);
+  const listLoading = searching ? userStore.isSearching : contactStore.isLoading;
+  const listError = searching ? userStore.error : contactStore.error;
 
   function selectUser(user: (typeof results)[number]) {
     setFound({ id: user.id, username: user.username, name: user.name, avatarUrl: user.avatar_url });
@@ -78,7 +84,7 @@ function NewDirectMessageDialogImpl({ open, onClose, onStart, currentUserId }: N
       <DialogTitle>New direct message</DialogTitle>
       <DialogContent>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Search by name, username, or email.
+          Choose a saved contact, or search everyone by name, username, or email.
         </Typography>
         <TextField
           autoFocus
@@ -92,13 +98,13 @@ function NewDirectMessageDialogImpl({ open, onClose, onStart, currentUserId }: N
           }}
         />
 
-        {userStore.error ? (
+        {listError ? (
           <Alert severity="error" sx={{ mt: 2 }}>
-            {userStore.error}
+            {listError}
           </Alert>
         ) : null}
 
-        {query.trim() && !found ? (
+        {!found ? (
           <Box
             sx={{
               mt: 2,
@@ -109,25 +115,34 @@ function NewDirectMessageDialogImpl({ open, onClose, onStart, currentUserId }: N
               borderRadius: 2,
             }}
           >
-            {userStore.isSearching ? (
+            {listLoading ? (
               <Box sx={{ display: "flex", justifyContent: "center", py: 3 }}>
                 <CircularProgress size={22} />
               </Box>
             ) : results.length === 0 ? (
               <Typography variant="body2" color="text.secondary" sx={{ textAlign: "center", py: 3, px: 2 }}>
-                No users found.
+                {searching ? "No users found." : "No saved contacts yet. Search for someone to start a conversation."}
               </Typography>
             ) : (
-              <List disablePadding>
-                {results.map((user) => (
-                  <ListItemButton key={user.id} dense onClick={() => selectUser(user)}>
-                    <ListItemAvatar>
-                      <Avatar src={user.avatar_url || undefined}>{user.name.charAt(0).toUpperCase()}</Avatar>
-                    </ListItemAvatar>
-                    <ListItemText primary={user.name} secondary={`@${user.username}`} />
-                  </ListItemButton>
-                ))}
-              </List>
+              <>
+                <List disablePadding>
+                  {results.map((user) => (
+                    <ListItemButton key={user.id} dense onClick={() => selectUser(user)}>
+                      <ListItemAvatar>
+                        <Avatar src={user.avatar_url || undefined}>{user.name.charAt(0).toUpperCase()}</Avatar>
+                      </ListItemAvatar>
+                      <ListItemText primary={user.name} secondary={`@${user.username}`} />
+                    </ListItemButton>
+                  ))}
+                </List>
+                {!searching && contactStore.hasMore ? (
+                  <Box sx={{ display: "flex", justifyContent: "center", p: 1 }}>
+                    <Button size="small" disabled={contactStore.isLoadingMore} onClick={() => contactStore.loadMore()}>
+                      {contactStore.isLoadingMore ? "Loading…" : "Load more"}
+                    </Button>
+                  </Box>
+                ) : null}
+              </>
             )}
           </Box>
         ) : null}

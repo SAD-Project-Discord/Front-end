@@ -6,12 +6,14 @@ import Stack from "@mui/material/Stack";
 import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
 import ForumRounded from "@mui/icons-material/ForumRounded";
+import PeopleAltRounded from "@mui/icons-material/PeopleAltRounded";
 import GroupsRounded from "@mui/icons-material/GroupsRounded";
 import TagRounded from "@mui/icons-material/TagRounded";
 import { chatSurfaces } from "@/lib/theme/theme";
 
 const SECTIONS = [
   { href: "/dm", label: "Direct Messages", icon: ForumRounded },
+  { href: "/contacts", label: "Contacts", icon: PeopleAltRounded },
   { href: "/groups", label: "Groups", icon: GroupsRounded },
   { href: "/channels", label: "Channels", icon: TagRounded },
 ] as const;
