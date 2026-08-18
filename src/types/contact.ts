@@ -1,17 +1,23 @@
 import type { PublicUserProfile } from "@/types/user";
 
-export interface PaginationMeta {
-  page: number;
-  limit: number;
-  total: number;
-  total_pages: number;
+export interface ContactPaginationMeta {
+  next_cursor: string | null;
+  has_more: boolean;
 }
 
-// The live endpoint (`GET /users/contacts`) returns the users the current
-// user has exchanged direct messages with, as a flat list — not a
-// friend-request/pending-accepted-rejected relationship model.
 export interface ContactsResponse {
   success: boolean;
   data: PublicUserProfile[];
-  meta?: PaginationMeta;
+  meta: ContactPaginationMeta;
+}
+
+export interface ContactResponse {
+  success: boolean;
+  data: PublicUserProfile;
+}
+
+export interface ListContactsParams {
+  q?: string;
+  cursor?: string;
+  limit?: number;
 }

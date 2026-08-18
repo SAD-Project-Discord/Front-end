@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Alert, Box, Button, CircularProgress, Stack, Typography } from "@mui/material";
 import { isAxiosError } from "axios";
 import { observer } from "mobx-react-lite";
@@ -8,6 +9,9 @@ import ProfileView from "@/components/profile/ProfileView";
 import ProfileEditForm from "@/components/profile/ProfileEditForm";
 import userService from "@/services/user.service";
 import authStore from "@/stores/AuthStore";
+import contactStore from "@/stores/ContactStore";
+import userStore from "@/stores/UserStore";
+import { closeUserProfile } from "@/lib/profileNav";
 import type { User } from "@/types/auth";
 import type { PublicUserProfile } from "@/types/user";
 
@@ -30,6 +34,7 @@ function getErrorMessage(error: unknown): string {
  * component keyed off whether `userId` matches the signed-in user.
  */
 function UserProfilePanel({ userId, embedded = false }: UserProfilePanelProps) {
+  const router = useRouter();
   const [user, setUser] = useState<User | PublicUserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(Boolean(userId));
   const [error, setError] = useState<string | null>(null);
@@ -46,6 +51,7 @@ function UserProfilePanel({ userId, embedded = false }: UserProfilePanelProps) {
     (async () => {
       setIsLoading(true);
       setError(null);
+      contactStore.clearActionError();
       try {
         await authStore.hydrateUser();
         if (isCancelled) return;
@@ -56,7 +62,10 @@ function UserProfilePanel({ userId, embedded = false }: UserProfilePanelProps) {
         }
 
         const profile = await userService.getPublicProfile(userId);
-        if (!isCancelled) setUser(profile);
+        if (!isCancelled) {
+          contactStore.rememberContactStatus(profile.id, profile.is_contact);
+          setUser(profile);
+        }
       } catch (requestError: unknown) {
         if (!isCancelled) {
           setUser(null);
@@ -114,7 +123,51 @@ function UserProfilePanel({ userId, embedded = false }: UserProfilePanelProps) {
     );
   }
 
-  return <ProfileView user={user} embedded={embedded} onEdit={isSelf ? () => setIsEditing(true) : undefined} />;
+  const publicProfile = isSelf ? null : user as PublicUserProfile;
+  const isContact = publicProfile
+    ? contactStore.contactStatusFor(publicProfile.id) ?? publicProfile.is_contact
+    : false;
+  const isContactWorking = publicProfile
+    ? contactStore.isAdding(publicProfile.id) || contactStore.isRemoving(publicProfile.id)
+    : false;
+
+  async function handleContactToggle() {
+    if (!publicProfile) return;
+    contactStore.clearActionError();
+
+    if (isContact) {
+      const removed = await contactStore.removeContact(publicProfile.id);
+      if (removed) {
+        userStore.setContactStatus(publicProfile.id, false);
+        setUser({ ...publicProfile, is_contact: false });
+      }
+      return;
+    }
+
+    const saved = await contactStore.addContact(publicProfile.id);
+    if (saved) {
+      userStore.setContactStatus(publicProfile.id, true);
+      setUser(saved);
+    }
+  }
+
+  function handleMessage() {
+    closeUserProfile();
+    router.push(`/dm?open=${encodeURIComponent(userId)}`);
+  }
+
+  return (
+    <ProfileView
+      user={user}
+      embedded={embedded}
+      onEdit={isSelf ? () => setIsEditing(true) : undefined}
+      onMessage={publicProfile ? handleMessage : undefined}
+      onContactToggle={publicProfile ? handleContactToggle : undefined}
+      isContact={isContact}
+      isContactWorking={isContactWorking}
+      contactError={publicProfile ? contactStore.actionError : null}
+    />
+  );
 }
 
 export default observer(UserProfilePanel);
