@@ -31,6 +31,7 @@ export default function IconTextField({ label, icon: Icon, id, slotProps, ...tex
         id={fieldId}
         fullWidth
         {...textFieldProps}
+        maxRows={isMultiline ? (textFieldProps.maxRows ?? 6) : textFieldProps.maxRows}
         slotProps={{
           ...slotProps,
           input: {
