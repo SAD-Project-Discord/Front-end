@@ -1,6 +1,7 @@
 import { makeAutoObservable, runInAction } from "mobx";
 
 import channelService from "@/services/channel.service";
+import { messagesApi } from "@/lib/api/messages";
 import type {
   Channel,
   ChannelAccessRole,
@@ -22,6 +23,19 @@ function getErrorMessage(error: unknown, fallback: string): string {
       : undefined;
 
   return typeof responseMessage === "string" ? responseMessage : fallback;
+}
+
+function isForbiddenError(error: unknown): boolean {
+  return (
+    !!error &&
+    typeof error === "object" &&
+    "response" in error &&
+    (error as { response?: { status?: number; data?: { error?: { code?: string } } } }).response?.status === 403
+  ) ||
+    (typeof error === "object" &&
+      error !== null &&
+      "response" in error &&
+      (error as { response?: { data?: { error?: { code?: string } } } }).response?.data?.error?.code === "FORBIDDEN");
 }
 
 class ChannelStore {
@@ -232,6 +246,124 @@ class ChannelStore {
     } finally {
       runInAction(() => {
         this.isSubmittingMembers = false;
+      });
+    }
+  }
+
+  /**
+   * Attempts to add members one-by-one and returns a per-user result set.
+   * Callers can prompt to send invite links for users that returned a
+   * privacy FORBIDDEN error.
+   */
+  async addMembersWithInviteFallback(
+    channelId: string,
+    userIds: string[]
+  ): Promise<{ added: string[]; addForbidden: string[]; errors: Record<string, string> }> {
+    const added: string[] = [];
+    const addForbidden: string[] = [];
+    const errors: Record<string, string> = {};
+
+    if (userIds.length === 0) return { added, addForbidden, errors };
+
+    this.isSubmittingMembers = true;
+    this.membersActionError = null;
+
+    try {
+      const results = await Promise.allSettled(userIds.map((userId) => channelService.addMember(channelId, userId)));
+
+      for (let i = 0; i < results.length; i++) {
+        const userId = userIds[i];
+        const res = results[i];
+        if (res.status === "fulfilled") {
+          added.push(userId);
+        } else {
+          const reason = res.reason;
+          if (isForbiddenError(reason)) {
+            addForbidden.push(userId);
+          } else {
+            errors[userId] = getErrorMessage(reason, "Could not add this member.");
+          }
+        }
+      }
+
+      if (added.length > 0) {
+        await this.loadChannelMembers(channelId);
+      }
+
+      if (Object.keys(errors).length > 0) {
+        runInAction(() => {
+          this.membersActionError = "Some members could not be added.";
+        });
+      }
+
+      return { added, addForbidden, errors };
+    } finally {
+      runInAction(() => {
+        this.isSubmittingMembers = false;
+      });
+    }
+  }
+
+  /**
+   * Sends an invite link via direct message to the specified users and
+   * returns per-user results so callers can show counts of invite-forbidden users.
+   */
+  async sendChannelInvitationsWithResults(
+    channelId: string,
+    userIds: string[]
+  ): Promise<{ invited: string[]; inviteForbidden: string[]; errors: Record<string, string> }> {
+    const invited: string[] = [];
+    const inviteForbidden: string[] = [];
+    const errors: Record<string, string> = {};
+
+    if (userIds.length === 0) return { invited, inviteForbidden, errors };
+
+    this.inviteLinkError = null;
+    this.inviteLinkLoading = true;
+
+    try {
+      const link = await this.getOrCreateInviteLink(channelId);
+      if (!link) {
+        // Could not create invite link; mark all as errors
+        userIds.forEach((id) => (errors[id] = "Could not create invite link."));
+        runInAction(() => {
+          this.inviteLinkError = "Could not create an invite link.";
+        });
+        return { invited, inviteForbidden, errors };
+      }
+
+      // Send a DM with the invite link to each user
+      const results = await Promise.allSettled(
+        userIds.map((userId) =>
+          messagesApi.sendMessage({ receiver_id: userId, content: `You've been invited to join a channel: ${link}` })
+        ),
+      );
+
+      for (let i = 0; i < results.length; i++) {
+        const userId = userIds[i];
+        const res = results[i];
+        if (res.status === "fulfilled") {
+          invited.push(userId);
+        } else {
+          const reason = res.reason;
+          if (isForbiddenError(reason)) {
+            inviteForbidden.push(userId);
+          } else {
+            errors[userId] = getErrorMessage(reason, "Could not send invite message.");
+          }
+        }
+      }
+
+      if (Object.keys(errors).length > 0) {
+        runInAction(() => {
+          this.inviteLinkError = "Could not send some invite messages.";
+        });
+      }
+
+      return { invited, inviteForbidden, errors };
+    } finally {
+      runInAction(() => {
+        this.inviteLinkLoading = false;
       });
     }
   }

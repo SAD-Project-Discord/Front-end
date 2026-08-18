@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import { useRef, useState, useEffect, type ChangeEvent, type FormEvent } from "react";
 import { Alert, Box, Button, Stack } from "@mui/material";
 import { AccountCircle, AlternateEmail, Email, ArrowForward } from "@mui/icons-material";
 import { useRouter } from "next/navigation";
@@ -31,6 +31,11 @@ const initialValues: RegisterFormValues = {
 
 function RegisterPage() {
   const router = useRouter();
+  useEffect(() => {
+    if (authStore.isAuthenticated) {
+      router.replace("/");
+    }
+  }, [authStore.isAuthenticated, router]);
   const [values, setValues] = useState<RegisterFormValues>(initialValues);
   const [formError, setFormError] = useState<string | null>(null);
   const usernameFieldRef = useRef<HTMLInputElement>(null);

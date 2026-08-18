@@ -36,6 +36,7 @@ import {
 } from "@mui/icons-material";
 import { observer } from "mobx-react-lite";
 import AddMembersModal from "@/components/members/AddMembersModal";
+import ConfirmSendInvitesModal from "@/components/members/ConfirmSendInvitesModal";
 import type { PublicUserProfile } from "@/types/user";
 import { InviteLinkSection } from "@/components/members/InviteLinkSection";
 import ChannelRolesPanel from "@/components/channel/ChannelRolesPanel";
@@ -73,6 +74,9 @@ function ChannelSettingsModal({
   const [formError, setFormError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [addMembersOpen, setAddMembersOpen] = useState(false);
+  const [confirmInviteOpen, setConfirmInviteOpen] = useState(false);
+  const [confirmInviteUsers, setConfirmInviteUsers] = useState<{ id: string; name: string }[]>([]);
+  const [inviteSummary, setInviteSummary] = useState<null | { invited: string[]; inviteForbidden: string[]; errors: Record<string, string> }>(null);
   const [confirmActionOpen, setConfirmActionOpen] = useState(false);
   const [actionWorking, setActionWorking] = useState(false);
   const [removeMemberTarget, setRemoveMemberTarget] = useState<ChannelMember | null>(null);
@@ -557,7 +561,16 @@ function ChannelSettingsModal({
         existingMemberIds={channelStore.myChannelMemberIds}
         onSubmit={async (users: PublicUserProfile[]) => {
           const ids = users.map((u) => u.id);
-          await channelStore.addChannelMembers(channel.id, ids);
+          const result = await channelStore.addMembersWithInviteFallback(channel.id, ids);
+
+          if (result.addForbidden.length > 0) {
+            const usersById = new Map(users.map((u) => [u.id, u]));
+            setConfirmInviteUsers(
+              result.addForbidden.map((id) => ({ id, name: usersById.get(id)?.name || usersById.get(id)?.username || id }))
+            );
+            setConfirmInviteOpen(true);
+          }
+
           return true;
         }}
         isSubmitting={channelStore.isSubmittingMembers}
@@ -565,6 +578,19 @@ function ChannelSettingsModal({
         title="Add to channel"
         subtitle="Search for people to add directly to this channel."
         submitLabel="Add"
+      />
+
+      <ConfirmSendInvitesModal
+        open={confirmInviteOpen}
+        users={confirmInviteUsers}
+        onClose={() => setConfirmInviteOpen(false)}
+        onConfirm={async () => {
+          const ids = confirmInviteUsers.map((u) => u.id);
+          const res = await channelStore.sendChannelInvitationsWithResults(channel.id, ids);
+          setInviteSummary(res);
+          setConfirmInviteOpen(false);
+          return res;
+        }}
       />
     </>
   );
