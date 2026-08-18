@@ -9,6 +9,7 @@ import type { NextConfig } from "next";
 const BACKEND_ORIGIN = process.env.BACKEND_ORIGIN || "http://130.185.120.78:8000";
 
 const nextConfig: NextConfig = {
+  devIndicators: false,
   // The backend's own URL scheme is inconsistent about trailing slashes
   // (e.g. POST /messages/ requires one, GET /messages/direct/{id} rejects
   // one) — Django's APPEND_SLASH 500s on a mismatch. Without this flag,
